@@ -40,6 +40,14 @@ class MockCompletion:
     usage: None = None
 
 
+@dataclass(frozen=True)
+class RawCompletion:
+    """A completion together with the provider response headers when available."""
+
+    completion: Any
+    headers: dict[str, str]
+
+
 class _MockCompletions:
     def __init__(self, default_model: str) -> None:
         self._default_model = default_model
@@ -104,6 +112,39 @@ class LLMClient:
         return self.chat.completions.create(
             model=model or self.model, messages=messages, **kwargs
         )
+
+    def complete_raw(
+        self,
+        messages: Sequence[Any],
+        *,
+        model: str | None = None,
+        **kwargs: Any,
+    ) -> RawCompletion:
+        """Complete and keep the provider response headers when available.
+
+        The headers come from the SDK's raw-response surface; mock mode and
+        providers without that surface return an empty header mapping instead
+        of inventing values.
+        """
+        selected_model = model or self.model
+        if self.is_mock:
+            completion = self.chat.completions.create(
+                model=selected_model, messages=messages, **kwargs
+            )
+            return RawCompletion(completion=completion, headers={})
+
+        raw_surface = getattr(self.chat.completions, "with_raw_response", None)
+        if raw_surface is None:
+            completion = self.chat.completions.create(
+                model=selected_model, messages=messages, **kwargs
+            )
+            return RawCompletion(completion=completion, headers={})
+
+        raw = raw_surface.create(
+            model=selected_model, messages=messages, **kwargs
+        )
+        headers = {str(name): str(value) for name, value in raw.headers.items()}
+        return RawCompletion(completion=raw.parse(), headers=headers)
 
     def close(self) -> None:
         if self._sdk_client is not None:
