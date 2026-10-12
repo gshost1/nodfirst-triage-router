@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -28,8 +29,10 @@ SYSTEM_PROMPT = (
     "appointment with that day as the datetime and do not ask for the time. "
     "Use only the five supplied tools. "
     "Call get_parent_summary or summarize_day only when the user asks for a "
-    "summary, update, or digest; never for an urgent message, a check-in, or a "
-    "request to record something. "
+    "summary, update, or digest, or asks a question about recorded medications, "
+    "appointments, or sibling tasks (for example who is driving Mom); never for an "
+    "urgent message, a check-in, or a request to record something. Answer such "
+    "questions directly from the tool result in one or two sentences. "
     "If native tool calls are unavailable, return a fenced JSON block containing "
     '{"name":"approved_tool_name","arguments":{...}}, or a list of such objects. '
     "If no tool is needed, respond in plain text. Summaries must reflect only "
@@ -44,8 +47,18 @@ EMPTY_REPLY_FALLBACK = (
     "Please send that again. If this could be an emergency, call 911 now."
 )
 
-# Replies for these tools are the store's own text, never a model paraphrase.
+# Replies for these tools are the store's own text, never a model paraphrase,
+# but only when the user asked for a summary or digest. A question such as
+# "who's driving Mom today?" keeps the model's short answer, grounded by the
+# tool result in context.
 GROUNDED_SUMMARY_TOOLS = frozenset({"get_parent_summary", "summarize_day"})
+SUMMARY_REQUEST = re.compile(r"\b(summar\w*|digest|recap|overview|full update)\b", re.IGNORECASE)
+
+VOICE_MAX_COMPLETION_TOKENS = 120  # keeps spoken replies to a sentence or two
+VOICE_STYLE = (
+    " The caregiver is speaking and will hear your reply read aloud: answer in "
+    "at most two short plain sentences, no lists, no markdown, no emoji."
+)
 
 
 @dataclass(frozen=True)
@@ -74,6 +87,7 @@ class CaregiverAgent:
         urgent: bool = False,
         sender: str | None = None,
         history: Sequence[dict[str, Any]] = (),
+        voice: bool = False,
     ) -> AgentResult:
         """Run one turn.
 
@@ -84,6 +98,8 @@ class CaregiverAgent:
         system = SYSTEM_PROMPT
         if sender:
             system += f" The person writing now is {sender}."
+        if voice:
+            system += VOICE_STYLE
         if urgent:
             system += "\n" + URGENT_ESCALATION_NOTE
         messages: list[dict[str, Any]] = [{"role": "system", "content": system}]
@@ -100,12 +116,13 @@ class CaregiverAgent:
         # An urgent turn gets no tools: the reply must be the escalation, not a
         # record lookup (live qwen3.8-max otherwise calls get_parent_summary
         # first and can come back with no text at all).
+        budget = VOICE_MAX_COMPLETION_TOKENS if voice else 512
         if urgent:
-            initial = self.complete(messages=messages, max_completion_tokens=512)
+            initial = self.complete(messages=messages, max_completion_tokens=budget)
         else:
             initial = self.complete(
                 messages=messages, tools=TOOL_SCHEMAS, tool_choice="auto",
-                max_completion_tokens=512,
+                max_completion_tokens=budget,
             )
         completions = [initial]
         response = getattr(initial, "completion", initial)
@@ -152,7 +169,7 @@ class CaregiverAgent:
                 ])
             followup = self.complete(
                 messages=messages, tools=TOOL_SCHEMAS, tool_choice="none",
-                max_completion_tokens=512,
+                max_completion_tokens=budget,
             )
             completions.append(followup)
             final = getattr(followup, "completion", followup)
@@ -162,7 +179,7 @@ class CaregiverAgent:
             # answered with a digest, even if the model called a summary tool.
             summaries = [a.result["summary"] for a in actions
                          if a.name in GROUNDED_SUMMARY_TOOLS]
-            if summaries and not urgent:
+            if summaries and not urgent and SUMMARY_REQUEST.search(message):
                 text = "\n".join(summaries)
         if not text.strip():
             text = EMPTY_REPLY_FALLBACK

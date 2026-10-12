@@ -60,6 +60,13 @@ class ChatRequest(BaseModel):
 
     message: str = Field(min_length=1)
     sender: str | None = Field(default=None, max_length=40)
+    voice: bool = False
+
+
+class SpeakRequest(BaseModel):
+    """Text to read aloud, normally a reply the page just received."""
+
+    text: str = Field(min_length=1, max_length=2000)
 
 
 def build_service() -> ChatService:
@@ -120,7 +127,21 @@ def create_app(
         message = request.message.strip()
         if not message:
             raise HTTPException(status_code=422, detail="message must not be blank")
-        return get_service().handle(message, sender=request.sender).as_dict()
+        return get_service().handle(
+            message, sender=request.sender, voice=request.voice
+        ).as_dict()
+
+    @api.post("/speak")
+    def speak(request: SpeakRequest) -> Response:
+        """Any text as WAV from text-to-speech; 503 when speech is not configured."""
+        try:
+            clip = get_service().speak(request.text)
+        except SpeechError as error:
+            raise HTTPException(status_code=error.status_code, detail=str(error)) from error
+        return Response(
+            clip.audio, media_type=clip.media_type,
+            headers={"Cache-Control": "no-store", "X-Speech-Model": clip.model},
+        )
 
     @api.post("/inbound")
     async def inbound(

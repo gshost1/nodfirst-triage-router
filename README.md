@@ -229,6 +229,26 @@ tasks); the model never paraphrases it, so nothing in the digest is invented.
   gateway. In MOCK mode, or without a key, the endpoint answers 503 and the
   page falls back to the browser's speech synthesis and says so.
 
+### Voice mode: a spoken conversation
+
+**🎙 Voice mode** in the thread header runs a hands-free loop: listen (browser
+speech recognition) → triage and answer (`POST /chat` with `voice: true`, which
+asks for one or two plain spoken sentences and caps the reply at 120 tokens)
+→ speak the reply (`POST /speak`, DigitalOcean `qwen3-tts-voicedesign`, or the
+browser voice if you pick it in the selector or the cloud voice is off) →
+listen again, until you press Stop. A status strip shows Listening, Thinking,
+and Speaking, and a typing bubble appears while the model works.
+
+Questions about recorded data are answered directly: "Who is driving Mom
+today?" calls `get_parent_summary` and replies with the sibling task, not the
+whole summary (verified live 2026-10-12: "the only driving I have on record is
+Pavel taking Mom to cardiology on Thursday"). The store-text override now
+applies only when you ask for a summary, digest, or recap.
+
+Timing on DigitalOcean: 3 to 6 s for the answer plus 5 to 17 s for the cloud
+voice, so a voice turn is roughly 10 to 20 s. Choose **Browser voice** for an
+instant reply when the cloud voice is too slow for the room.
+
 ### Inbound webhook (SMS or email gateway)
 
 `POST /inbound` lets a real text or email enter the same triage. No carrier

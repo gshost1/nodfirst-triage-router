@@ -286,3 +286,34 @@ def test_empty_model_reply_gets_an_honest_fallback(tmp_path: Path) -> None:
     assert result.tool_actions == []
     assert "couldn't put a reply together" in result.reply
     assert "911" in result.reply
+
+
+def test_voice_turns_ask_for_short_spoken_replies(tmp_path: Path) -> None:
+    store = CareStore(tmp_path / "v.sqlite3")
+    replies = Replies(completion("Pavel is driving Mom on Thursday."))
+    CaregiverAgent(store, replies).run("Who's driving Mom?", voice=True)
+    prompt = replies.requests[0]["messages"][0]["content"]
+    assert "read aloud" in prompt and "two short plain sentences" in prompt
+    assert replies.requests[0]["max_completion_tokens"] == 120
+
+
+def test_question_about_records_keeps_the_models_answer(tmp_path: Path) -> None:
+    """'Who's driving Mom?' must not be answered with the whole summary dump."""
+    store = CareStore(tmp_path / "q.sqlite3")
+    store.assign_sibling_task("Pavel", "Drive Mom to cardiology on Thursday")
+    replies = Replies(
+        completion(calls=[tool("get_parent_summary")]),
+        completion("Pavel is driving Mom to cardiology on Thursday."),
+    )
+
+    result = CaregiverAgent(store, replies).run("Who's driving Mom today?")
+
+    assert [a.name for a in result.tool_actions] == ["get_parent_summary"]
+    assert result.reply == "Pavel is driving Mom to cardiology on Thursday."
+
+    asked = Replies(
+        completion(calls=[tool("get_parent_summary")]),
+        completion("Here is a made-up summary with an invented appointment."),
+    )
+    summary = CaregiverAgent(store, asked).run("Give me a summary of Mom")
+    assert summary.reply.startswith("Here's the recorded update for Mom")

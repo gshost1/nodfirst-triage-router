@@ -162,7 +162,9 @@ class ChatService:
     def is_mock(self) -> bool:
         return self.config.mode is RouterMode.MOCK
 
-    def handle(self, message: str, *, sender: str | None = None) -> ChatTurn:
+    def handle(
+        self, message: str, *, sender: str | None = None, voice: bool = False
+    ) -> ChatTurn:
         """Run one turn in the shared sibling thread.
 
         The last `HISTORY_TURNS` stored messages are sent as context, the new
@@ -185,7 +187,8 @@ class ChatService:
         decision = dispatch_route(self.config, classification)
         agent = CaregiverAgent(self.store, self._completion(recorder, decision))
         result = agent.run(
-            message, urgent=decision.is_urgent, sender=sender, history=history
+            message, urgent=decision.is_urgent, sender=sender, history=history,
+            voice=voice,
         )
 
         message_class = decision.message_class.value
@@ -249,6 +252,10 @@ class ChatService:
     def speak_digest(self) -> SpeechClip:
         """Read the digest aloud through text-to-speech (raises SpeechError)."""
         return self.speech.synthesize(self.store.daily_digest()["summary"])
+
+    def speak(self, text: str) -> SpeechClip:
+        """Read any reply aloud (raises SpeechError)."""
+        return self.speech.synthesize(text)
 
     def email_digest(self) -> dict[str, Any]:
         """Email the digest to the alert recipients through the notifier."""

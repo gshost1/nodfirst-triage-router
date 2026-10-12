@@ -107,6 +107,21 @@
       .chat-head { display: flex; align-items: center; gap: 10px; padding: 12px 18px; border-bottom: 1px solid var(--line); }
       .chat-head h2 { margin: 0; font-size: 14px; font-weight: 700; }
       .chat-head .sub { color: var(--muted); font-size: 12.5px; }
+      .voice-controls { margin-left: auto; display: flex; gap: 8px; align-items: center; }
+      #voice-engine { height: 34px; padding: 0 28px 0 10px; border: 1px solid var(--line-strong); border-radius: 999px; background: #fff; font: inherit; font-size: 13px; font-weight: 600; color: var(--brand-2); appearance: none; -webkit-appearance: none;
+        background-image: linear-gradient(45deg, transparent 50%, var(--brand-2) 50%), linear-gradient(135deg, var(--brand-2) 50%, transparent 50%);
+        background-position: calc(100% - 14px) 14px, calc(100% - 9px) 14px; background-size: 5px 5px, 5px 5px; background-repeat: no-repeat; }
+      #voice-mode { height: 34px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line-strong); background: #fff; color: var(--brand-2); font-weight: 600; font-size: 13px; cursor: pointer; }
+      #voice-mode[data-state="on"] { background: var(--urgent); border-color: var(--urgent); color: #fff; }
+      #voice-mode:disabled { opacity: .45; cursor: not-allowed; }
+      .voice-state { margin: 0; padding: 8px 18px; font-size: 13px; font-weight: 600; border-bottom: 1px solid var(--line); background: var(--brand-soft); color: var(--brand); display: flex; align-items: center; gap: 8px; }
+      .voice-state::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: #9aa5b1; }
+      .voice-state[data-state="listening"]::before { background: var(--urgent); animation: pulse 1.2s ease-in-out infinite; }
+      .voice-state[data-state="thinking"]::before { background: #f59e0b; }
+      .voice-state[data-state="speaking"]::before { background: var(--routine); }
+      .message.pending .text { color: var(--muted); letter-spacing: .2em; }
+      .message.pending .text::after { content: "●●●"; animation: blink 1.2s steps(3, end) infinite; }
+      @keyframes blink { 0% { opacity: .25; } 50% { opacity: 1; } 100% { opacity: .25; } }
       #conversation { flex: 1; min-height: 0; overflow-y: auto; padding: 20px 20px 12px; display: flex; flex-direction: column; gap: 18px; background: linear-gradient(180deg, #fbfcfd, #f6f8fa); }
       #conversation .empty { margin: auto; text-align: center; max-width: 36ch; }
       .message { display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 12px; max-width: 88%; }
@@ -262,7 +277,16 @@
         <div class="chat-head">
           <h2 id="chat-heading">Sibling thread</h2>
           <span class="sub">Anna, Pavel and you, one shared conversation about Mom</span>
+          <div class="voice-controls">
+            <select id="voice-engine" aria-label="Voice for spoken replies">
+              <option value="cloud">Cloud voice</option>
+              <option value="browser">Browser voice</option>
+            </select>
+            <button id="voice-mode" type="button" aria-pressed="false" data-state="off">🎙 Voice mode</button>
+          </div>
         </div>
+        <p id="voice-state" role="status" class="voice-state" data-state="off" hidden>Voice mode off.</p>
+        <audio id="reply-audio" hidden></audio>
         <div
           id="conversation"
           role="log"
@@ -384,6 +408,12 @@
         var digestAudio = document.getElementById('digest-audio');
         var micControl = document.getElementById('mic-control');
         var micStatus = document.getElementById('mic-status');
+        var voiceModeButton = document.getElementById('voice-mode');
+        var voiceEngine = document.getElementById('voice-engine');
+        var voiceState = document.getElementById('voice-state');
+        var replyAudio = document.getElementById('reply-audio');
+        var voiceMode = false;
+        var pendingBubble = null;
 
         var DEMO_MESSAGES = JSON.parse(
           document.getElementById('demo-script').textContent
@@ -839,19 +869,45 @@
             .then(renderStats);
         }
 
-        function sendMessage(rawText) {
+        function showPending() {
+          removePending();
+          var item = document.createElement('article');
+          item.className = 'message assistant pending';
+          item.setAttribute('aria-hidden', 'true');
+          item.appendChild(avatarFor('assistant'));
+          var bubble = document.createElement('div');
+          bubble.className = 'bubble';
+          var text = document.createElement('p');
+          text.className = 'text';
+          bubble.appendChild(text);
+          item.appendChild(bubble);
+          conversation.appendChild(item);
+          scrollConversation();
+          pendingBubble = item;
+        }
+
+        function removePending() {
+          if (pendingBubble && pendingBubble.parentNode) {
+            pendingBubble.parentNode.removeChild(pendingBubble);
+          }
+          pendingBubble = null;
+        }
+
+        function sendMessage(rawText, options) {
           var message = String(rawText || '').trim();
           if (!message) {
             return Promise.resolve(null);
           }
+          var voice = Boolean(options && options.voice);
           var sender = senderSelect.value || 'You';
           appendUserMessage(message, sender);
+          showPending();
           body.dataset.chatCount = String(Number(body.dataset.chatCount) + 1);
           sendButton.dataset.busy = 'true';
           return fetch('/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message: message, sender: sender })
+            body: JSON.stringify({ message: message, sender: sender, voice: voice })
           })
             .then(function (response) {
               if (!response.ok) {
@@ -860,6 +916,7 @@
               return response.json();
             })
             .then(function (turn) {
+              removePending();
               appendAssistantMessage(turn);
               // Stats refresh in the already-loaded page: no navigation here.
               var refresh = turn.alert ? refreshAlerts() : Promise.resolve();
@@ -868,6 +925,7 @@
               });
             })
             .catch(function (error) {
+              removePending();
               appendError(error.message);
               return null;
             })
@@ -971,11 +1029,15 @@
             micControl.dataset.listening = 'false';
             micControl.setAttribute('aria-pressed', 'false');
             micControl.textContent = '🎤';
-            if (composerInput.value.trim()) {
-              micStatus.textContent = 'Heard: "' + composerInput.value.trim() + '" — sending.';
-              var text = composerInput.value;
-              composerInput.value = '';
-              sendMessage(text);
+            var heard = composerInput.value.trim();
+            composerInput.value = '';
+            if (voiceMode) {
+              voiceTurn(heard);
+              return;
+            }
+            if (heard) {
+              micStatus.textContent = 'Heard: "' + heard + '" — sending.';
+              sendMessage(heard);
             } else {
               micStatus.textContent = 'Voice input: nothing heard. Try again.';
             }
@@ -1003,9 +1065,133 @@
           });
         }
 
+        // ---- Voice mode: listen -> triage -> speak the reply -> listen again.
+        function setVoiceState(state, text) {
+          voiceState.dataset.state = state;
+          voiceState.textContent = text;
+          voiceState.hidden = state === 'off';
+          voiceModeButton.dataset.state = state === 'off' ? 'off' : 'on';
+          voiceModeButton.setAttribute('aria-pressed', String(state !== 'off'));
+          voiceModeButton.textContent = state === 'off' ? '🎙 Voice mode' : '⏹ Stop voice mode';
+        }
+
+        function startListening() {
+          if (!voiceMode || !recognizer) {
+            return;
+          }
+          composerInput.value = '';
+          micControl.dataset.listening = 'true';
+          micControl.setAttribute('aria-pressed', 'true');
+          micControl.textContent = '⏹';
+          setVoiceState('listening', 'Listening… say something about Mom, then pause.');
+          try {
+            recognizer.start();
+          } catch (error) {
+            setVoiceState('listening', 'Listening… (' + error.message + ')');
+          }
+        }
+
+        function speakText(text) {
+          // Resolves when playback has finished, whichever engine produced it.
+          var trimmed = String(text || '').trim();
+          if (!trimmed) {
+            return Promise.resolve();
+          }
+          if (voiceEngine.value === 'browser' || speechStatus.dataset.engine === 'browser') {
+            return speakInBrowserAsync(trimmed);
+          }
+          setVoiceState('speaking', 'Speaking… (cloud voice, this takes a few seconds to start)');
+          return fetch('/speak', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: trimmed })
+          })
+            .then(function (response) {
+              if (!response.ok) {
+                throw new Error('POST /speak returned ' + response.status);
+              }
+              return response.blob();
+            })
+            .then(function (blob) {
+              return new Promise(function (resolve) {
+                replyAudio.src = URL.createObjectURL(blob);
+                replyAudio.onended = resolve;
+                replyAudio.onerror = resolve;
+                replyAudio.play().catch(resolve);
+                setVoiceState('speaking', 'Speaking… (cloud voice)');
+              });
+            })
+            .catch(function () {
+              return speakInBrowserAsync(trimmed);
+            });
+        }
+
+        function speakInBrowserAsync(text) {
+          return new Promise(function (resolve) {
+            if (!window.speechSynthesis) {
+              resolve();
+              return;
+            }
+            window.speechSynthesis.cancel();
+            var utterance = new SpeechSynthesisUtterance(text);
+            utterance.rate = 0.98;
+            utterance.onend = resolve;
+            utterance.onerror = resolve;
+            setVoiceState('speaking', 'Speaking… (browser voice)');
+            window.speechSynthesis.speak(utterance);
+          });
+        }
+
+        function voiceTurn(heard) {
+          if (!voiceMode) {
+            return;
+          }
+          if (!heard) {
+            startListening();
+            return;
+          }
+          setVoiceState('thinking', 'Heard “' + heard + '”. Thinking…');
+          sendMessage(heard, { voice: true }).then(function (turn) {
+            if (!voiceMode) {
+              return null;
+            }
+            return speakText(turn ? turn.reply : 'Sorry, I could not reach the assistant.');
+          }).then(function () {
+            if (voiceMode) {
+              setTimeout(startListening, 250);
+            }
+          });
+        }
+
+        function stopVoiceMode() {
+          voiceMode = false;
+          try { recognizer && recognizer.abort(); } catch (error) { /* already stopped */ }
+          if (window.speechSynthesis) { window.speechSynthesis.cancel(); }
+          replyAudio.pause();
+          micControl.dataset.listening = 'false';
+          micControl.setAttribute('aria-pressed', 'false');
+          micControl.textContent = '🎤';
+          setVoiceState('off', 'Voice mode off.');
+        }
+
+        if (!recognizer) {
+          voiceModeButton.disabled = true;
+          voiceModeButton.title = 'Needs browser speech recognition';
+        }
+        voiceModeButton.addEventListener('click', function () {
+          if (voiceMode) {
+            stopVoiceMode();
+            return;
+          }
+          voiceMode = true;
+          startListening();
+        });
+
         // ---- Voice output: the server's text-to-speech model when the local
         // API has a live endpoint, otherwise the browser's own speech synthesis.
         function renderSpeech(speech) {
+          voiceEngine.value = speech && speech.enabled ? 'cloud' : 'browser';
+          voiceEngine.disabled = !(speech && speech.enabled);
           speechStatus.dataset.engine = speech && speech.enabled ? speech.provider : 'browser';
           speechStatus.textContent = speech && speech.enabled
             ? 'Voice output: ' + speech.provider + ' ' + speech.model + '.'

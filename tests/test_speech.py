@@ -118,3 +118,29 @@ def test_ui_has_mic_and_read_aloud_controls(tmp_path: Path) -> None:
         "fetch('/digest/speak'", "webkitSpeechRecognition", "speechSynthesis",
     ):
         assert required in html, required
+
+
+def test_speak_endpoint_reads_any_text_or_reports_503(tmp_path: Path) -> None:
+    calls: list[dict[str, object]] = []
+    speech = DOSpeech(base_url="https://x/v1", api_key="doo-v1-secret",
+                      transport=fake_transport(calls))
+    api = TestClient(create_app(service=service(tmp_path, speech)))
+
+    response = api.post("/speak", json={"text": "Pavel is driving Mom on Thursday."})
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "audio/wav"
+    assert calls[0]["payload"]["input"] == "Pavel is driving Mom on Thursday."  # type: ignore[index]
+    assert api.post("/speak", json={"text": ""}).status_code == 422
+
+    off_dir = tmp_path / "off"
+    off_dir.mkdir()
+    off = TestClient(create_app(service=service(off_dir)))
+    assert off.post("/speak", json={"text": "hi"}).status_code == 503
+
+
+def test_ui_has_voice_mode_controls(tmp_path: Path) -> None:
+    html = TestClient(create_app(service=service(tmp_path))).get("/").text
+    for required in ('id="voice-mode"', 'id="voice-engine"', 'id="voice-state"',
+                     'id="reply-audio"', "fetch('/speak'"):
+        assert required in html, required

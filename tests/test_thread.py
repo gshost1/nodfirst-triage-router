@@ -332,3 +332,18 @@ def test_ui_shows_email_delivery_state(tmp_path: Path) -> None:
     html = mock_api(tmp_path).get("/").text
     assert 'id="alert-delivery"' in html
     assert "via Botmail" in html
+
+
+def test_chat_voice_flag_reaches_the_agent_prompt(tmp_path: Path) -> None:
+    client = StubClient(
+        reply("routine", "glm-5.3-flash", usage_obj=usage(5, 1)),
+        reply("Pavel is driving.", "glm-5.3-flash", usage_obj=usage(20, 3)),
+    )
+    api = build_api(config=RouterConfig.from_env(PRICED_ENV),
+                    db_path=tmp_path / "voice.sqlite3", client=client)
+
+    turn = api.post("/chat", json={"message": "Who is driving Mom?", "sender": "Anna",
+                                    "voice": True}).json()
+
+    assert turn["reply"] == "Pavel is driving."
+    assert "read aloud" in client.requests[1]["messages"][0]["content"]
