@@ -1,5 +1,5 @@
 """Local FastAPI surface: the static UI, `POST /chat`, `POST /inbound`,
-`GET /stats`, `GET /thread`, and the urgent `/alerts` endpoints.
+`GET /stats`, `GET /thread`, the urgent `/alerts` endpoints, and `/demo`.
 
 Bind this application to loopback only. It coordinates the classifier,
 routing, and caregiver agent through `core.chat.ChatService` and never talks to
@@ -19,6 +19,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from pydantic import BaseModel, Field
 
 from core.chat import ChatService
+from core.demo_data import SUGGESTED_QUESTIONS, is_seeded, seed_demo
 from core.inbound import (
     InboundError,
     contacts_from_env,
@@ -184,6 +185,19 @@ def create_app(
     def thread() -> dict[str, Any]:
         """The shared sibling thread and roster, so a reload keeps the history."""
         return get_service().thread()
+
+    @api.get("/demo")
+    def demo_state() -> dict[str, Any]:
+        """Suggested questions and whether the demo week is loaded."""
+        return {
+            "seeded": is_seeded(get_service().store),
+            "suggestions": list(SUGGESTED_QUESTIONS),
+        }
+
+    @api.post("/demo/seed")
+    def demo_seed() -> dict[str, Any]:
+        """Load the demo week into the store (no model call); idempotent."""
+        return seed_demo(get_service().store)
 
     @api.get("/digest")
     def digest() -> dict[str, Any]:

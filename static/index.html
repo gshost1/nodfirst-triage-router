@@ -152,6 +152,14 @@
       .tool-note { margin: 6px 0 0; font-size: 12px; color: var(--muted); }
 
       /* Composer */
+      #suggestions { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 18px 0; margin: 0; list-style: none; }
+      #suggestions[hidden] { display: none; }
+      .suggestion { font: inherit; font-size: 13px; font-weight: 600; padding: 7px 12px; border-radius: 999px; border: 1px solid var(--line-strong); background: #fff; color: var(--brand-2); cursor: pointer; }
+      .suggestion:hover { background: var(--brand-soft); }
+      .suggestion[data-kind="urgent"] { border-color: #f1b2b2; color: var(--urgent); }
+      .suggestion[data-kind="urgent"]:hover { background: #fdecec; }
+      .suggestion:disabled { opacity: .55; cursor: default; }
+      #demo-seed { width: 100%; margin-top: 8px; }
       #composer-form {
         display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; gap: 8px; align-items: center;
         padding: 12px 14px; border-top: 1px solid var(--line); background: var(--panel);
@@ -270,6 +278,8 @@
 
         <section class="card" aria-labelledby="replay-heading">
           <h2 id="replay-heading">Demo</h2>
+          <button id="demo-seed" type="button" data-seeded="false">Load demo week</button>
+          <p id="demo-status" role="status" class="muted">Checking demo data…</p>
           <button id="replay-control" type="button" style="width: 100%">Replay 5 messages</button>
           <p id="replay-status" role="status" data-messages="0" data-routine="0" data-logistics="0" data-urgent="0" data-replay-count="0">Replay not started.</p>
         </section>
@@ -299,6 +309,7 @@
         >
           <p class="empty" id="conversation-empty">No messages yet. Try “Mom had a fall in the kitchen this morning” or press Replay.</p>
         </div>
+        <ul id="suggestions" aria-label="Suggested questions"></ul>
         <form id="composer-form" autocomplete="off">
           <label for="sender">Writing as</label>
           <select id="sender" name="sender" aria-label="Which sibling is writing">
@@ -393,6 +404,9 @@
         var sendButton = document.getElementById('send-button');
         var toolList = document.getElementById('tool-actions');
         var toolEmpty = document.getElementById('tool-actions-empty');
+        var suggestions = document.getElementById('suggestions');
+        var demoSeed = document.getElementById('demo-seed');
+        var demoStatus = document.getElementById('demo-status');
         var replayControl = document.getElementById('replay-control');
         var replayStatus = document.getElementById('replay-status');
         var statsPanel = document.getElementById('stats-panel');
@@ -1421,6 +1435,74 @@
           speechStatus.dataset.lastEngine = 'browser';
           speechStatus.textContent = 'Voice output: reading with browser speech synthesis.';
         }
+
+        // ---- Suggested questions: one click sends (or speaks, in voice mode).
+        function askSuggestion(text) {
+          if (sendButton.dataset.busy === 'true' || voiceBusy) {
+            return;
+          }
+          if (voiceMode) {
+            try { recognizer && recognizer.abort(); } catch (error) { /* not listening */ }
+            voiceTurn(text);
+            return;
+          }
+          sendMessage(text);
+        }
+        function renderSuggestions(items) {
+          suggestions.textContent = '';
+          (items || []).forEach(function (item) {
+            var li = document.createElement('li');
+            var button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'suggestion';
+            button.dataset.kind = item.kind || 'routine';
+            button.textContent = item.text;
+            button.addEventListener('click', function () { askSuggestion(item.text); });
+            li.appendChild(button);
+            suggestions.appendChild(li);
+          });
+          suggestions.hidden = suggestions.childElementCount === 0;
+        }
+        function renderDemoState(state) {
+          demoSeed.dataset.seeded = String(Boolean(state.seeded));
+          demoSeed.disabled = Boolean(state.seeded);
+          demoStatus.textContent = state.seeded
+            ? 'Demo week loaded: meds, appointments, tasks, thread, one alert.'
+            : 'Loads a week of meds, appointments, tasks, and thread history. No model call.';
+          renderSuggestions(state.suggestions);
+        }
+        function loadDemoState() {
+          return fetch('/demo', { headers: { Accept: 'application/json' } })
+            .then(function (response) {
+              if (!response.ok) {
+                throw new Error('GET /demo returned ' + response.status);
+              }
+              return response.json();
+            })
+            .then(renderDemoState)
+            .catch(function (error) {
+              demoStatus.textContent = 'Demo data unavailable: ' + error.message;
+            });
+        }
+        demoSeed.addEventListener('click', function () {
+          demoSeed.disabled = true;
+          demoStatus.textContent = 'Loading the demo week…';
+          fetch('/demo/seed', { method: 'POST' })
+            .then(function (response) {
+              if (!response.ok) {
+                throw new Error('POST /demo/seed returned ' + response.status);
+              }
+              return response.json();
+            })
+            .then(function () {
+              return Promise.all([loadDemoState(), loadThread(), refreshAlerts(), refreshStats()]);
+            })
+            .catch(function (error) {
+              demoSeed.disabled = false;
+              demoStatus.textContent = 'Could not load demo data: ' + error.message;
+            });
+        });
+        loadDemoState();
 
         digestSpeak.addEventListener('click', function () {
           digestSpeak.dataset.busy = 'true';
