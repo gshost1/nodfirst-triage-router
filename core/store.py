@@ -14,9 +14,19 @@ _STOPWORDS = frozenset(
 )
 
 
+# Words that say nothing about *which* task it is.
+_GENERIC = frozenset(
+    ["drive", "drives", "driving", "ride", "take", "takes", "taking", "bring", "pick", "pickup", "drop", "visit", "call", "calls", "appointment", "morning", "afternoon", "evening", "tonight", "today", "tomorrow", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday", "october", "november", "december", "january", "february", "march", "april", "may", "june", "july", "august", "september"]
+)
+
+
 def _keywords(text: str) -> set[str]:
-    words = re.findall(r"[a-z0-9]+", text.lower())
+    words = re.findall(r"[a-z]+", text.lower())
     return {w for w in words if len(w) > 2 and w not in _STOPWORDS}
+
+
+def _content_words(words: set[str]) -> set[str]:
+    return {w for w in words if w not in _GENERIC}
 
 
 class CareStore:
@@ -139,6 +149,13 @@ class CareStore:
             if not have:
                 continue
             overlap = len(wanted & have) / min(len(wanted), len(have))
+            # "Drive Mom to the podiatrist Thursday" must not claim the
+            # cardiology drive: a specific word (cardiology, physio, blood)
+            # has to match when both sides have one.
+            specific_wanted = _content_words(wanted)
+            specific_have = _content_words(have)
+            if specific_wanted and specific_have and not (specific_wanted & specific_have):
+                continue
             if overlap >= 0.5 and (best is None or overlap > best[0]):
                 best = (overlap, row)
         return best[1] if best else None
