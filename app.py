@@ -1,5 +1,5 @@
-"""Local FastAPI surface: the static UI, `POST /chat`, `GET /stats`,
-`GET /thread`, and the urgent `/alerts` endpoints.
+"""Local FastAPI surface: the static UI, `POST /chat`, `POST /inbound`,
+`GET /stats`, `GET /thread`, and the urgent `/alerts` endpoints.
 
 Bind this application to loopback only. It coordinates the classifier,
 routing, and caregiver agent through `core.chat.ChatService` and never talks to
@@ -12,12 +12,20 @@ import os
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
+from urllib.parse import parse_qs
 
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi import FastAPI, Header, HTTPException, Request
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from pydantic import BaseModel, Field
 
 from core.chat import ChatService
+from core.inbound import (
+    InboundError,
+    contacts_from_env,
+    parse_inbound,
+    token_is_valid,
+    twiml_reply,
+)
 from core.llm import create_llm_client
 from core.metrics_store import MetricsStore
 from core.notify import notifier_from_env
@@ -73,10 +81,21 @@ def create_app(
     *,
     service: ChatService | None = None,
     service_factory: Callable[[], ChatService] | None = None,
+    inbound_contacts: dict[str, str] | None = None,
+    inbound_secret: str | None = None,
 ) -> FastAPI:
-    """Create the app; tests inject a `service` built from doubles."""
+    """Create the app; tests inject a `service` built from doubles.
+
+    `inbound_contacts` maps phone numbers or email addresses to sibling names
+    and `inbound_secret` gates `POST /inbound`; both default to the
+    `INBOUND_CONTACTS` and `INBOUND_SECRET` environment variables.
+    """
     api = FastAPI(title="Nod First Triage Router", version="0.1.0")
     cache: dict[str, ChatService] = {}
+    contacts = inbound_contacts if inbound_contacts is not None else contacts_from_env()
+    secret = inbound_secret if inbound_secret is not None else os.getenv(
+        "INBOUND_SECRET", ""
+    ).strip()
 
     def get_service() -> ChatService:
         if service is not None:
@@ -100,6 +119,43 @@ def create_app(
         if not message:
             raise HTTPException(status_code=422, detail="message must not be blank")
         return get_service().handle(message, sender=request.sender).as_dict()
+
+    @api.post("/inbound")
+    async def inbound(
+        request: Request,
+        x_inbound_token: str | None = Header(default=None),
+    ) -> Response:
+        """Accept a text or email from a gateway and triage it like a typed turn.
+
+        JSON bodies (`from`, `text`) get the chat turn as JSON. Form bodies in
+        the Twilio shape (`From`, `Body`) get a TwiML reply so the gateway can
+        text the answer back. When `INBOUND_SECRET` is set, the request must
+        carry it in `X-Inbound-Token`.
+        """
+        if not token_is_valid(x_inbound_token, secret):
+            raise HTTPException(status_code=401, detail="invalid inbound token")
+        content_type = request.headers.get("content-type", "")
+        if "application/json" in content_type:
+            payload = await request.json()
+            if not isinstance(payload, dict):
+                raise HTTPException(status_code=422, detail="JSON body must be an object")
+            channel = "json"
+        else:
+            # Parse urlencoded forms directly: no python-multipart dependency.
+            raw = (await request.body()).decode("utf-8", errors="replace")
+            payload = {key: values[-1] for key, values in parse_qs(raw).items()}
+            channel = "form"
+        try:
+            message = parse_inbound(payload, channel=channel, contacts=contacts)
+        except InboundError as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
+        turn = get_service().handle(message.text, sender=message.sender).as_dict()
+        turn["inbound"] = {
+            "channel": channel, "origin": message.origin, "sender": message.sender,
+        }
+        if channel == "form":
+            return Response(twiml_reply(turn["reply"]), media_type="application/xml")
+        return JSONResponse(turn)
 
     @api.get("/thread")
     def thread() -> dict[str, Any]:

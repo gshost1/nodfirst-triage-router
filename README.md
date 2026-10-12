@@ -37,6 +37,7 @@ store, and an optional DigitalOcean Inference Router path.
                                   v
               +---------------------------------------+
               |  FastAPI  POST /chat  (127.0.0.1)     |
+              |  + POST /inbound (SMS/email gateway)  |
               |  + GET /thread, GET /alerts, /ack     |
               +---------------------------------------+
                                   |
@@ -119,6 +120,8 @@ never commit or share it. `.env.example` holds placeholders only.
 | `PORT` | Loopback port for the local app | `8000` |
 | `CARE_DB` | Optional SQLite path override (default `nodfirst.sqlite3`, git-ignored) | unset |
 | `DO_ROUTER_MODEL` | Optional Inference Router name override (default `router:nodfirst`) | unset |
+| `INBOUND_CONTACTS` | Optional `number-or-email=Name` pairs for `POST /inbound` sender mapping | unset |
+| `INBOUND_SECRET` | Optional shared secret required in `X-Inbound-Token` on `POST /inbound` | unset |
 | `ALERT_EMAIL_TO` | Optional comma-separated recipients for urgent alert email | unset (alerts stay local) |
 | `BOTMAIL_API_KEY` / `BOTMAIL_KEY_FILE` | Botmail key, inline or as a file path. Never printed, logged, or committed | unset |
 
@@ -187,6 +190,34 @@ The chat is one thread shared by the siblings, not a per-tab session:
   2026-10-12 with a real send to the owner's own address (HTTP 202).
 
 All of it lives in the same git-ignored SQLite file as the tools' data.
+
+### Inbound webhook (SMS or email gateway)
+
+`POST /inbound` lets a real text or email enter the same triage. No carrier
+account is needed to demo it; curl stands in for the gateway:
+
+```bash
+# Generic JSON: the reply comes back as the chat-turn JSON
+curl -s -X POST http://127.0.0.1:8000/inbound -H 'Content-Type: application/json' \
+  -d '{"from": "+15551234567", "text": "Mom missed her 8am metformin and sounds confused"}'
+```
+
+```bash
+# Twilio-shaped form (From, Body): the reply comes back as TwiML, so a
+# gateway pointed at this URL texts the answer straight back
+curl -s -X POST http://127.0.0.1:8000/inbound --data-urlencode "From=+15551234567" \
+  --data-urlencode "Body=Book Mom's cardiology for Thursday, Pavel drives"
+```
+
+- `INBOUND_CONTACTS` maps a number or address to a sibling name
+  (`+15551234567=Anna,pavel@example.com=Pavel`). An unknown sender is shown
+  by its number or address, never as a sibling, so nobody is impersonated.
+- `INBOUND_SECRET`, when set, must arrive in the `X-Inbound-Token` header
+  (constant-time compare); otherwise the endpoint returns 401. The app is
+  loopback-only, so exposing it to a gateway means a tunnel plus the secret.
+- Blank, over-long (2000 chars), or non-object bodies are rejected with 422.
+- Inbound content is data: it goes through the classifier and the agent like
+  a typed message and never changes configuration.
 
 Routing modes:
 
@@ -331,7 +362,7 @@ appears in this README or in the UI.
 ## Not in this MVP
 
 Hermes deployment to a Droplet/App Platform, a daily sibling digest, SMS
-delivery, inbound SMS/email webhooks, cloud deployment, load
+delivery, a live carrier/gateway account for the inbound webhook, cloud deployment, load
 testing, a labeled accuracy evaluation, and the 20-message routing evaluation.
 The app is prepped for those, not shipping them.
 
