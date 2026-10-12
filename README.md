@@ -249,6 +249,17 @@ Timing on DigitalOcean: 3 to 6 s for the answer plus 5 to 17 s for the cloud
 voice, so a voice turn is roughly 10 to 20 s. Choose **Browser voice** for an
 instant reply when the cloud voice is too slow for the room.
 
+Browser notes (found live 2026-10-12 in a Chromium build without Google's
+speech service): speech recognition fails with `network` on every start, and
+the `<audio>` element never starts decoding the WAV. Voice mode handles both.
+A fatal recognition error (`network`, `not-allowed`, `audio-capture`) stops
+the listen loop and switches to **typed voice mode**: you type the question,
+the reply is still spoken aloud. Clips play through the Web Audio API
+(`decodeAudioData`) with the `<audio>` element as fallback. For hands-free
+listening use Google Chrome or Safari. Verified in that Chromium build: typed
+"Who is driving Mom today?" → logistics route, 2.5 s answer, 8.6 s cloud clip
+played to the end.
+
 ### Inbound webhook (SMS or email gateway)
 
 `POST /inbound` lets a real text or email enter the same triage. No carrier

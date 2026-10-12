@@ -115,10 +115,12 @@
       #voice-mode[data-state="on"] { background: var(--urgent); border-color: var(--urgent); color: #fff; }
       #voice-mode:disabled { opacity: .45; cursor: not-allowed; }
       .voice-state { margin: 0; padding: 8px 18px; font-size: 13px; font-weight: 600; border-bottom: 1px solid var(--line); background: var(--brand-soft); color: var(--brand); display: flex; align-items: center; gap: 8px; }
+      .voice-state[hidden] { display: none; }
       .voice-state::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: #9aa5b1; }
       .voice-state[data-state="listening"]::before { background: var(--urgent); animation: pulse 1.2s ease-in-out infinite; }
       .voice-state[data-state="thinking"]::before { background: #f59e0b; }
       .voice-state[data-state="speaking"]::before { background: var(--routine); }
+      .voice-state[data-state="typed"]::before { background: var(--logistics); }
       .message.pending .text { color: var(--muted); letter-spacing: .2em; }
       .message.pending .text::after { content: "●●●"; animation: blink 1.2s steps(3, end) infinite; }
       @keyframes blink { 0% { opacity: .25; } 50% { opacity: 1; } 100% { opacity: .25; } }
@@ -938,6 +940,12 @@
           event.preventDefault();
           var text = composerInput.value;
           composerInput.value = '';
+          if (voiceMode) {
+            // Voice mode speaks every reply, typed or heard.
+            try { recognizer && recognizer.abort(); } catch (error) { /* not listening */ }
+            voiceTurn(text.trim());
+            return;
+          }
           sendMessage(text);
         });
 
@@ -1044,6 +1052,10 @@
           });
           recognizer.addEventListener('error', function (event) {
             micStatus.textContent = 'Voice input error: ' + event.error + '.';
+            if (voiceMode && FATAL_RECOGNITION_ERRORS.indexOf(event.error) !== -1) {
+              recognitionBroken = event.error;
+              setVoiceState('typed', RECOGNITION_HELP[event.error] || ('Microphone unavailable (' + event.error + '). Type below and I will still answer out loud.'));
+            }
           });
           micControl.addEventListener('click', function () {
             if (micControl.dataset.listening === 'true') {
@@ -1066,7 +1078,21 @@
         }
 
         // ---- Voice mode: listen -> triage -> speak the reply -> listen again.
+        // Some Chromium builds ship without a speech-recognition service and
+        // fail every start with "network"; voice mode then keeps the spoken
+        // replies and takes the question from the keyboard instead.
+        var FATAL_RECOGNITION_ERRORS = ['network', 'not-allowed', 'service-not-allowed', 'audio-capture', 'language-not-supported'];
+        var RECOGNITION_HELP = {
+          'network': 'This browser cannot reach a speech-recognition service (use Google Chrome or Safari for hands-free). Type your question below; replies are still spoken aloud.',
+          'not-allowed': 'Microphone blocked. Allow it in the address bar, or type below; replies are still spoken aloud.',
+          'service-not-allowed': 'Speech recognition is disabled in this browser. Type below; replies are still spoken aloud.',
+          'audio-capture': 'No microphone found. Type below; replies are still spoken aloud.'
+        };
+        var recognitionBroken = null;
+        window.__voiceLog = window.__voiceLog || [];
+
         function setVoiceState(state, text) {
+          window.__voiceLog.push(Math.round(performance.now()) + ' ' + state + ' ' + text);
           voiceState.dataset.state = state;
           voiceState.textContent = text;
           voiceState.hidden = state === 'off';
@@ -1079,6 +1105,11 @@
           if (!voiceMode || !recognizer) {
             return;
           }
+          if (recognitionBroken) {
+            setVoiceState('typed', RECOGNITION_HELP[recognitionBroken] || 'Type your question below; replies are spoken aloud.');
+            composerInput.focus();
+            return;
+          }
           composerInput.value = '';
           micControl.dataset.listening = 'true';
           micControl.setAttribute('aria-pressed', 'true');
@@ -1089,6 +1120,66 @@
           } catch (error) {
             setVoiceState('listening', 'Listening… (' + error.message + ')');
           }
+        }
+
+        // Clip playback goes through the Web Audio API: some Chromium builds
+        // never start decoding a WAV in an <audio> element (readyState stays
+        // 0) but decode the same bytes with decodeAudioData. The <audio>
+        // element stays as the fallback and as the visible digest player.
+        var audioContext = null;
+        var playingSource = null;
+        function ensureAudioContext() {
+          var Context = window.AudioContext || window.webkitAudioContext;
+          if (!Context) {
+            return null;
+          }
+          if (!audioContext) {
+            audioContext = new Context();
+          }
+          if (audioContext.state === 'suspended') {
+            audioContext.resume().catch(function () { /* needs a gesture */ });
+          }
+          return audioContext;
+        }
+        function stopClip() {
+          if (playingSource) {
+            try { playingSource.stop(); } catch (error) { /* already ended */ }
+            playingSource = null;
+          }
+          replyAudio.pause();
+          digestAudio.pause();
+        }
+        function playClip(blob, element) {
+          // Resolves when the clip has finished, or straight away on failure.
+          var context = ensureAudioContext();
+          var viaElement = function () {
+            return new Promise(function (resolve) {
+              element.src = URL.createObjectURL(blob);
+              element.onended = resolve;
+              element.onerror = resolve;
+              element.play().catch(resolve);
+            });
+          };
+          if (!context) {
+            return viaElement();
+          }
+          return blob.arrayBuffer()
+            .then(function (buffer) { return context.decodeAudioData(buffer); })
+            .then(function (decoded) {
+              return new Promise(function (resolve) {
+                stopClip();
+                var source = context.createBufferSource();
+                source.buffer = decoded;
+                source.connect(context.destination);
+                source.onended = function () {
+                  if (playingSource === source) { playingSource = null; }
+                  resolve();
+                };
+                playingSource = source;
+                source.start();
+              });
+            })
+            .catch(viaElement);
         }
 
         function speakText(text) {
@@ -1113,13 +1204,8 @@
               return response.blob();
             })
             .then(function (blob) {
-              return new Promise(function (resolve) {
-                replyAudio.src = URL.createObjectURL(blob);
-                replyAudio.onended = resolve;
-                replyAudio.onerror = resolve;
-                replyAudio.play().catch(resolve);
-                setVoiceState('speaking', 'Speaking… (cloud voice)');
-              });
+              setVoiceState('speaking', 'Speaking… (cloud voice)');
+              return playClip(blob, replyAudio);
             })
             .catch(function () {
               return speakInBrowserAsync(trimmed);
@@ -1151,6 +1237,7 @@
             return;
           }
           setVoiceState('thinking', 'Heard “' + heard + '”. Thinking…');
+          composerInput.value = '';
           sendMessage(heard, { voice: true }).then(function (turn) {
             if (!voiceMode) {
               return null;
@@ -1167,7 +1254,7 @@
           voiceMode = false;
           try { recognizer && recognizer.abort(); } catch (error) { /* already stopped */ }
           if (window.speechSynthesis) { window.speechSynthesis.cancel(); }
-          replyAudio.pause();
+          stopClip();
           micControl.dataset.listening = 'false';
           micControl.setAttribute('aria-pressed', 'false');
           micControl.textContent = '🎤';
@@ -1184,6 +1271,8 @@
             return;
           }
           voiceMode = true;
+          recognitionBroken = null;
+          ensureAudioContext();
           startListening();
         });
 
@@ -1226,11 +1315,10 @@
               }
               var model = response.headers.get('X-Speech-Model') || 'server';
               return response.blob().then(function (blob) {
-                digestAudio.src = URL.createObjectURL(blob);
                 digestAudio.hidden = false;
                 speechStatus.dataset.lastEngine = 'server';
                 speechStatus.textContent = 'Voice output: playing ' + model + ' audio.';
-                return digestAudio.play();
+                return playClip(blob, digestAudio);
               });
             })
             .catch(function (error) {
