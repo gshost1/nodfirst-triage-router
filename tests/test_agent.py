@@ -9,7 +9,7 @@ from typing import Any
 
 import pytest
 
-from core.agent import TOOL_SCHEMAS, CaregiverAgent
+from core.agent import SYSTEM_PROMPT, TOOL_SCHEMAS, CaregiverAgent
 from core.mock_agent import mock_agent_completion
 from core.store import CareStore
 
@@ -261,3 +261,19 @@ def test_empty_summary_has_no_invented_records(store: CareStore) -> None:
     assert "Mom (Ludmila, 81)" in result.reply
     assert result.reply.count("none recorded") == 3
     assert "Aspirin" not in result.reply
+
+
+def test_urgent_reply_is_never_replaced_by_a_summary_tool_result(tmp_path: Path) -> None:
+    """Live models sometimes call summarize_day unprompted; urgent replies must survive."""
+    store = CareStore(tmp_path / "u.sqlite3")
+    replies = Replies(
+        completion(calls=[tool("summarize_day")]),
+        completion("Please call 911 now, then let Anna and Pavel know."),
+    )
+
+    result = CaregiverAgent(store, replies).run("Mom had a fall", urgent=True)
+
+    assert [a.name for a in result.tool_actions] == ["summarize_day"]
+    assert result.reply.startswith("Please call 911 now")
+    assert "Daily digest" not in result.reply
+    assert "only when the user asks for a" in SYSTEM_PROMPT

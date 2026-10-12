@@ -25,6 +25,9 @@ SYSTEM_PROMPT = (
     "Only record values the user requested, and never claim an action succeeded "
     "until its tool result confirms it. Preserve relative dates such as Thursday "
     "rather than inventing a calendar date. Use only the five supplied tools. "
+    "Call get_parent_summary or summarize_day only when the user asks for a "
+    "summary, update, or digest; never for an urgent message, a check-in, or a "
+    "request to record something. "
     "If native tool calls are unavailable, return a fenced JSON block containing "
     '{"name":"approved_tool_name","arguments":{...}}, or a list of such objects. '
     "If no tool is needed, respond in plain text. Summaries must reflect only "
@@ -137,9 +140,11 @@ class CaregiverAgent:
             final = getattr(followup, "completion", followup)
             text = final.choices[0].message.content or "I've recorded that for you."
             # Store-grounded summaries cannot gain invented entries in a follow-up.
+            # An urgent message keeps the model's reply: a fall must never be
+            # answered with a digest, even if the model called a summary tool.
             summaries = [a.result["summary"] for a in actions
                          if a.name in GROUNDED_SUMMARY_TOOLS]
-            if summaries:
+            if summaries and not urgent:
                 text = "\n".join(summaries)
         if urgent:
             text = f"{text}\n\n{URGENT_ESCALATION_NOTE}".strip()
