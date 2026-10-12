@@ -54,10 +54,11 @@ EMPTY_REPLY_FALLBACK = (
 GROUNDED_SUMMARY_TOOLS = frozenset({"get_parent_summary", "summarize_day"})
 SUMMARY_REQUEST = re.compile(r"\b(summar\w*|digest|recap|overview|full update)\b", re.IGNORECASE)
 
-VOICE_MAX_COMPLETION_TOKENS = 120  # keeps spoken replies to a sentence or two
+VOICE_MAX_COMPLETION_TOKENS = 80  # keeps spoken replies to a sentence or two
 VOICE_STYLE = (
     " The caregiver is speaking and will hear your reply read aloud: answer in "
-    "at most two short plain sentences, no lists, no markdown, no emoji."
+    "one short plain sentence, two at most, under 30 words in all, no lists, "
+    "no markdown, no emoji. Lead with the answer, skip preamble."
 )
 
 

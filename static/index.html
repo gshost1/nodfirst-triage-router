@@ -1146,7 +1146,9 @@
           }
           return audioContext;
         }
+        var clipGeneration = 0;
         function stopClip() {
+          clipGeneration += 1;
           if (playingSource) {
             try { playingSource.stop(); } catch (error) { /* already ended */ }
             playingSource = null;
@@ -1154,45 +1156,121 @@
           replyAudio.pause();
           digestAudio.pause();
         }
-        function playClip(blob, element, onStart) {
-          // Resolves when the clip has finished, or straight away on failure.
-          // onStart runs the moment sound begins.
-          var started = function () { if (onStart) { onStart(); onStart = null; } };
+        function decodeClip(blob) {
+          // AudioBuffer when the Web Audio API is available, else null.
           var context = ensureAudioContext();
-          var viaElement = function () {
-            return new Promise(function (resolve) {
-              element.src = URL.createObjectURL(blob);
-              element.onended = resolve;
-              element.onerror = resolve;
-              element.onplaying = started;
-              element.play().catch(resolve);
-            });
-          };
           if (!context) {
-            return viaElement();
+            return Promise.resolve(null);
           }
           return blob.arrayBuffer()
             .then(function (buffer) { return context.decodeAudioData(buffer); })
-            .then(function (decoded) {
-              return new Promise(function (resolve) {
-                stopClip();
-                var source = context.createBufferSource();
-                source.buffer = decoded;
-                source.connect(context.destination);
-                source.onended = function () {
-                  if (playingSource === source) { playingSource = null; }
-                  resolve();
-                };
-                playingSource = source;
-                source.start();
-                started();
-              });
-            })
-            .catch(viaElement);
+            .catch(function () { return null; });
+        }
+        function playDecoded(decoded, onStart) {
+          return new Promise(function (resolve) {
+            var context = ensureAudioContext();
+            if (playingSource) {
+              try { playingSource.stop(); } catch (error) { /* already ended */ }
+            }
+            var source = context.createBufferSource();
+            source.buffer = decoded;
+            source.connect(context.destination);
+            source.onended = function () {
+              if (playingSource === source) { playingSource = null; }
+              resolve();
+            };
+            playingSource = source;
+            source.start();
+            if (onStart) { onStart(); }
+          });
+        }
+        function playViaElement(blob, element, onStart) {
+          return new Promise(function (resolve) {
+            element.src = URL.createObjectURL(blob);
+            element.onended = resolve;
+            element.onerror = resolve;
+            element.onplaying = function () { if (onStart) { onStart(); onStart = null; } };
+            element.play().catch(resolve);
+          });
+        }
+        function playClip(blob, element, onStart) {
+          // Resolves when the clip has finished, or straight away on failure.
+          // onStart runs the moment sound begins.
+          return decodeClip(blob).then(function (decoded) {
+            return decoded ? playDecoded(decoded, onStart) : playViaElement(blob, element, onStart);
+          });
         }
 
-        // Cloud voice latency seen live on 2026-10-12: 5 to 17 s, usually 8 to 10.
-        var VOICE_WAIT_HINT = 'usually 8 to 10 s';
+        // The cloud voice takes about 0.08 s per character and nothing streams
+        // (verified 2026-10-12: 33 chars 3.5 s, 123 chars 10 s, 235 chars 20 s,
+        // first byte arrives with the last). Sentences are synthesized in
+        // parallel and played in order, so the first one starts early.
+        var SPEECH_PART_MAX = 140;
+        var SPEECH_PART_MIN = 24;
+        function splitForSpeech(text) {
+          var sentences = String(text).replace(/\s+/g, ' ').trim().split(/(?<=[.!?])\s+/);
+          var parts = [];
+          sentences.forEach(function (sentence) {
+            var chunks = [sentence];
+            if (sentence.length > SPEECH_PART_MAX) {
+              chunks = sentence.split(/(?<=[,;:])\s+/);
+            }
+            chunks.forEach(function (chunk) {
+              chunk = chunk.trim();
+              if (!chunk) { return; }
+              var last = parts.length - 1;
+              if (last >= 0 && (chunk.length < SPEECH_PART_MIN || parts[last].length < SPEECH_PART_MIN) &&
+                  parts[last].length + chunk.length + 1 <= SPEECH_PART_MAX) {
+                parts[last] += ' ' + chunk;
+              } else {
+                parts.push(chunk);
+              }
+            });
+          });
+          return parts;
+        }
+        function fetchClip(text) {
+          return fetch('/speak', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text: text })
+          }).then(function (response) {
+            if (!response.ok) {
+              throw new Error('POST /speak returned ' + response.status);
+            }
+            return response.blob();
+          });
+        }
+        function speakCloud(text, element, onStart) {
+          // Rejects only if the first part fails, so the caller can fall back.
+          var parts = splitForSpeech(text);
+          var generation = clipGeneration;
+          var clips = parts.map(function (part) {
+            return fetchClip(part).then(function (blob) {
+              return decodeClip(blob).then(function (decoded) {
+                return { blob: blob, decoded: decoded };
+              });
+            });
+          });
+          var chain = clips[0].then(function (clip) {
+            return clip.decoded ? playDecoded(clip.decoded, onStart) : playViaElement(clip.blob, element, onStart);
+          });
+          clips.slice(1).forEach(function (pending) {
+            chain = chain.then(function () {
+              if (generation !== clipGeneration) {
+                return null; // stopped while an earlier part was playing
+              }
+              return pending.then(function (clip) {
+                if (generation !== clipGeneration) { return null; }
+                return clip.decoded ? playDecoded(clip.decoded) : playViaElement(clip.blob, element);
+              }).catch(function () { /* skip a failed part */ });
+            });
+          });
+          return chain;
+        }
+
+        // Cloud voice: first sentence usually lands in 3 to 8 s (parallel parts).
+        var VOICE_WAIT_HINT = 'usually 3 to 8 s';
         var waitTimer = null;
         function startWaitTimer(label) {
           stopWaitTimer();
@@ -1222,24 +1300,11 @@
             return speakInBrowserAsync(trimmed, onStart);
           }
           startWaitTimer('Making the voice reply…');
-          return fetch('/speak', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text: trimmed })
+          return speakCloud(trimmed, replyAudio, function () {
+            stopWaitTimer();
+            setVoiceState('speaking', 'Speaking… (cloud voice)');
+            if (onStart) { onStart(); onStart = null; }
           })
-            .then(function (response) {
-              if (!response.ok) {
-                throw new Error('POST /speak returned ' + response.status);
-              }
-              return response.blob();
-            })
-            .then(function (blob) {
-              stopWaitTimer();
-              return playClip(blob, replyAudio, function () {
-                setVoiceState('speaking', 'Speaking… (cloud voice)');
-                if (onStart) { onStart(); onStart = null; }
-              });
-            })
             .catch(function () {
               stopWaitTimer();
               return speakInBrowserAsync(trimmed, onStart);
@@ -1354,21 +1419,26 @@
         digestSpeak.addEventListener('click', function () {
           digestSpeak.dataset.busy = 'true';
           speechStatus.textContent = 'Voice output: requesting audio...';
-          fetch('/digest/speak', { method: 'POST' })
+          fetch('/digest')
             .then(function (response) {
-              if (response.status === 503) {
-                return fetch('/digest').then(function (r) { return r.json(); })
-                  .then(function (digest) { speakInBrowser(digest.summary); return null; });
-              }
               if (!response.ok) {
-                throw new Error('POST /digest/speak returned ' + response.status);
+                throw new Error('GET /digest returned ' + response.status);
               }
-              var model = response.headers.get('X-Speech-Model') || 'server';
-              return response.blob().then(function (blob) {
-                digestAudio.hidden = false;
-                speechStatus.dataset.lastEngine = 'server';
+              return response.json();
+            })
+            .then(function (digest) {
+              if (!(digest.speech && digest.speech.enabled)) {
+                speakInBrowser(digest.summary);
+                return null;
+              }
+              // Sentence by sentence through POST /speak, so the first line
+              // plays in a few seconds instead of after the whole clip.
+              var model = digest.speech.model || 'server';
+              speechStatus.dataset.lastEngine = 'server';
+              return speakCloud(digest.summary, digestAudio, function () {
                 speechStatus.textContent = 'Voice output: playing ' + model + ' audio.';
-                return playClip(blob, digestAudio);
+              }).then(function () {
+                speechStatus.textContent = 'Voice output: ' + model + ' finished.';
               });
             })
             .catch(function (error) {

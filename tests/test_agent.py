@@ -293,8 +293,8 @@ def test_voice_turns_ask_for_short_spoken_replies(tmp_path: Path) -> None:
     replies = Replies(completion("Pavel is driving Mom on Thursday."))
     CaregiverAgent(store, replies).run("Who's driving Mom?", voice=True)
     prompt = replies.requests[0]["messages"][0]["content"]
-    assert "read aloud" in prompt and "two short plain sentences" in prompt
-    assert replies.requests[0]["max_completion_tokens"] == 120
+    assert "read aloud" in prompt and "one short plain sentence" in prompt
+    assert replies.requests[0]["max_completion_tokens"] == 80
 
 
 def test_question_about_records_keeps_the_models_answer(tmp_path: Path) -> None:

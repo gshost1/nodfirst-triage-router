@@ -115,7 +115,7 @@ def test_ui_has_mic_and_read_aloud_controls(tmp_path: Path) -> None:
     html = TestClient(create_app(service=service(tmp_path))).get("/").text
     for required in (
         'id="mic-control"', 'id="digest-speak"', 'id="digest-audio"',
-        "fetch('/digest/speak'", "webkitSpeechRecognition", "speechSynthesis",
+        "function speakCloud(", "webkitSpeechRecognition", "speechSynthesis",
     ):
         assert required in html, required
 
