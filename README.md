@@ -22,13 +22,16 @@ store, and an optional DigitalOcean Inference Router path.
 | --- | --- |
 | Local app (MOCK routing, tools, `/chat`, `/stats`, static UI) | Working; tested locally with MOCK doubles and temporary SQLite files |
 | Five-message demo CLI (`scripts/demo.py`) | Working offline (MOCK rehearsal) |
-| DigitalOcean model list (`GET /v1/models`) | Verified once: HTTP 200, 81 model IDs, no Nous Hermes model present |
+| DigitalOcean model list (`GET /v1/models`) | Verified 2026-10-12: HTTP 200, 82 model IDs, no Nous Hermes model, no speech-to-text model (`qwen3-tts-voicedesign` is text-to-speech only) |
 | `nodfirst` Inference Router created in the DO Control Panel | **Done** (2026-10-12): routine -> `glm-5.3-flash`, logistics -> `glm-5.3`, urgent-health -> `qwen3.8-max`, fallback `glm-5.3-flash` |
-| DigitalOcean chat completion through `router:nodfirst` | Verified 2026-10-12 with the five-message rehearsal in `ROUTER_MODE=do`: 15 calls, both urgent messages served by `qwen3.8-max` via the direct-large bypass, routine/logistics served by `glm-5.3-flash`/`glm-5.3` with the router's selected route reported; estimated spend $0.012 |
-| DigitalOcean text-to-speech (`qwen3-tts-voicedesign`) | Verified 2026-10-12: `POST /digest/speak` returned a 26 s WAV |
+| Full chat flow in `ROUTER_MODE=do` | **Verified 2026-10-12, latest run clean** (see "Live rehearsal results" below): all five scripted messages classified as expected, both urgent messages served by `qwen3.8-max` via the direct-large bypass, routine/logistics served by `glm-5.3-flash`/`glm-5.3` through `router:nodfirst`, every turn under 4 s, 12 calls, estimated spend $0.006 |
+| Live bugs found and fixed during rehearsal | Thinking tiers returned empty text until `reasoning_effort=none`; summary tools overrode urgent replies; `qwen3.8-max` called a lookup tool on "Mom had a fall"; `glm-5.3` asked for a time instead of booking. All fixed and re-verified live |
+| DigitalOcean text-to-speech (`qwen3-tts-voicedesign`) | Verified 2026-10-12: `POST /digest/speak` returned a 26 s WAV through the app; inputs over ~400 chars timed out, so the digest is capped at 320 |
+| Botmail alert and digest email | Verified 2026-10-12: urgent alert and digest both delivered (Botmail events queued, sent, delivered) |
+| Inbound webhook (`POST /inbound`) | Verified locally with JSON and Twilio-shaped form posts; no carrier account attached |
 | Nous Hermes model or agent used/deployed | **No.** This app is Hermes-ready only |
-| GitHub repository | Pushed to <https://github.com/gshost1/nodfirst-triage-router> (private as of 2026-10-12; make it public for the submission) |
-| Spend | Effectively $0.00: one 62-token router smoke request; costs shown anywhere are estimates |
+| GitHub repository | Public: <https://github.com/gshost1/nodfirst-triage-router> |
+| Spend | Under $0.10 total across all live rehearsals and probes on 2026-10-12; costs shown anywhere in the app are estimates |
 
 ## Architecture
 
@@ -301,6 +304,29 @@ The demo always reports MOCK routes (`mock`, `mock:direct-large`) and labels the
 cost column as an estimate. Latency in MOCK mode measures local canned work, not
 inference.
 
+## Live rehearsal results (2026-10-12, `ROUTER_MODE=do`)
+
+The five scripted messages through the real DigitalOcean path, after the fixes
+listed in the status table. Latency is the whole turn (classifier plus agent).
+
+| # | Message | Expected | Got | Served model | Path | Latency | Tools |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | How did Mom's visit with her neighbor go yesterday? | routine | routine | `glm-5.3-flash` | `router:nodfirst`, route `routine` | 3.4 s | none |
+| 2 | Book Mom's cardiology for Thursday, Pavel drives | logistics | logistics | `glm-5.3` | `router:nodfirst`, route `logistics` | 3.7 s | `add_appointment` |
+| 3 | Can you schedule Mom's pharmacy refill delivery for Friday? | logistics | logistics | `glm-5.3-flash` | `router:nodfirst`, route `routine` (the router's own choice) | 3.2 s | `add_appointment` |
+| 4 | Mom had a fall in the kitchen this morning. | urgent | urgent | `qwen3.8-max` | direct, router bypassed | 2.7 s | none |
+| 5 | Mom says she has chest pain and I can't reach her doctor. | urgent | urgent | `qwen3.8-max` | direct, router bypassed | 3.7 s | none |
+
+Totals: 12 inference calls (5 classifier on the small tier, 5 router, 2 large),
+estimated spend $0.006, estimated savings versus sending everything to the
+large tier $0.006. Both urgent replies open with "call 911 now"; the routine
+reply says honestly that nothing is recorded about the visit.
+
+Earlier runs the same day were not clean, and the fixes are in the git history:
+an empty routine reply (thinking model, reasoning budget), a misclassified
+routine message (same cause, in the 16-token classifier), an urgent reply
+replaced by a digest, and a 112 s logistics turn that did not reproduce.
+
 ## Two-minute walkthrough
 
 Prepare one of these two servers, then open <http://127.0.0.1:8000>:
@@ -309,7 +335,7 @@ Prepare one of these two servers, then open <http://127.0.0.1:8000>:
 # Offline (what you can always demo)
 ROUTER_MODE=mock LLM_BASE_URL=mock uv run uvicorn app:app --host 127.0.0.1 --port 8000
 
-# DigitalOcean; the nodfirst router exists and the key is configured (one routine smoke request verified)
+# DigitalOcean: the nodfirst router exists and the key is configured (full flow verified, see above)
 ROUTER_MODE=do uv run uvicorn app:app --host 127.0.0.1 --port 8000
 ```
 
@@ -334,12 +360,10 @@ State the mode you are actually running:
   unauthorized: it sends the same messages to the tier model IDs directly on the
   DigitalOcean endpoint.
 
-The router exists and one routine smoke request has succeeded (see the status
-table). If your key lacks router scope, or the router is unavailable in your
+The full flow in `ROUTER_MODE=do` has been verified (see "Live rehearsal
+results"). If your key lacks router scope, or the router is unavailable in your
 environment, demo `ROUTER_MODE=client` or MOCK and say so instead of claiming the
-router path works. That single smoke verifies only a configured routine request;
-urgent routing (which bypasses the router), the other two configured routes, and
-a full app chat flow in `ROUTER_MODE=do` remain unverified.
+router path works.
 
 Avoid unsupported numbers: this MVP has no evaluated accuracy figure and no
 benchmark, so do not quote savings percentages or urgent-recall rates. The stats

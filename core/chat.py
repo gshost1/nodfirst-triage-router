@@ -230,6 +230,13 @@ class ChatService:
         return {
             "siblings": self.store.siblings(),
             "messages": self.store.recent_messages(limit),
+            "mode": self.config.mode.value,
+            "tiers": {
+                "routine": self.config.small_model or "mock",
+                "logistics": self.config.mid_model or "mock",
+                "urgent": self.config.large_model or "mock",
+                "router": self.config.do_router_model,
+            },
         }
 
     def alerts(self) -> list[dict[str, Any]]:

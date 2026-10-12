@@ -7,199 +7,263 @@
     <style>
       :root {
         color-scheme: light;
-        --ink: #16202b;
-        --ink-soft: #3b4756;
-        --muted: #66717f;
-        --line: #e3e8ee;
-        --line-strong: #cbd3dc;
-        --surface: #ffffff;
-        --surface-2: #f6f8fa;
-        --page: #eef1f5;
-        --brand: #1f4e79;
-        --brand-ink: #ffffff;
-        --brand-soft: #e8f0f8;
-        --routine: #1a7f37;
-        --routine-bg: #e6f4ea;
-        --logistics: #0b5cad;
-        --logistics-bg: #e7f0fd;
-        --urgent: #b3261e;
-        --urgent-bg: #fdecea;
-        --warn-bg: #fff7e6;
-        --warn-line: #e8b86b;
-        --radius: 12px;
-        --radius-sm: 8px;
-        --shadow: 0 1px 2px rgba(22, 32, 43, 0.05), 0 4px 16px rgba(22, 32, 43, 0.05);
+        --bg: #f3f5f8;
+        --panel: #ffffff;
+        --panel-2: #f7f9fb;
+        --line: #e4e8ee;
+        --line-strong: #c9d2dc;
+        --ink: #141b24;
+        --ink-2: #3d4a58;
+        --muted: #6b7684;
+        --brand: #15325a;
+        --brand-2: #1f4e79;
+        --brand-soft: #e6eef7;
+        --accent: #2f7cf6;
+        --routine: #1a7f37;  --routine-bg: #e3f3e8;  --routine-line: #a9dbb8;
+        --logistics: #0b5cad; --logistics-bg: #e4eefb; --logistics-line: #abc8ef;
+        --urgent: #c0261f;   --urgent-bg: #fdeae8;   --urgent-line: #f1b7b2;
+        --warn: #b45309;     --warn-bg: #fff4e0;
+        --r: 12px; --r-sm: 8px;
+        --shadow: 0 1px 1px rgba(20, 27, 36, .04), 0 6px 20px rgba(20, 27, 36, .06);
       }
       * { box-sizing: border-box; }
-      html { scroll-behavior: smooth; }
+      html, body { height: 100%; }
       body {
-        margin: 0;
-        background: var(--page);
-        color: var(--ink);
-        font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+        margin: 0; background: var(--bg); color: var(--ink);
+        font: 14.5px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
         -webkit-font-smoothing: antialiased;
+        display: flex; flex-direction: column; min-height: 100vh;
       }
-      header, main { max-width: 1180px; margin: 0 auto; padding: 0 20px; }
-      header { padding-top: 28px; }
-      .masthead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px 14px; margin-bottom: 6px; }
-      h1 { font-size: 24px; font-weight: 700; letter-spacing: -0.01em; margin: 0; }
-      .tagline { margin: 0; color: var(--muted); }
-      #mode-note { margin: 0 0 12px; color: var(--muted); font-size: 14px; max-width: 72ch; }
+      button { font: inherit; }
+
+      /* App bar */
+      .appbar {
+        background: var(--brand); color: #fff;
+        display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+        padding: 0 22px; min-height: 56px;
+      }
+      .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 16px; letter-spacing: -0.01em; }
+      .brand .mark { width: 28px; height: 28px; border-radius: 8px; background: linear-gradient(135deg, #5aa8ff, #2f7cf6); display: grid; place-items: center; font-size: 13px; font-weight: 800; color: #fff; }
+      .brand small { font-weight: 500; opacity: .75; font-size: 13px; }
+      .mode-pill {
+        display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px;
+        font-size: 11.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase;
+        background: rgba(255,255,255,.12); color: #e6eef7; border: 1px solid rgba(255,255,255,.18);
+      }
+      .mode-pill::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: #9aa5b1; }
+      .mode-pill[data-mode="do"] { background: rgba(37, 211, 102, .16); border-color: rgba(37, 211, 102, .45); color: #c9f5d9; }
+      .mode-pill[data-mode="do"]::before { background: #25d366; box-shadow: 0 0 0 3px rgba(37, 211, 102, .25); }
+      .mode-pill[data-mode="client"] { background: rgba(255, 196, 0, .14); border-color: rgba(255, 196, 0, .4); color: #ffe9a3; }
+      .mode-pill[data-mode="client"]::before { background: #ffc400; }
+      .tiers { margin-left: auto; display: flex; gap: 6px; flex-wrap: wrap; }
+      .tier { display: inline-flex; align-items: center; gap: 7px; padding: 4px 10px; border-radius: 999px; background: rgba(255,255,255,.08); font-size: 12px; }
+      .tier .dot { width: 8px; height: 8px; border-radius: 50%; }
+      .tier b { font-weight: 600; text-transform: capitalize; }
+      .tier code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; opacity: .85; }
+      .dot-routine { background: #4ade80; } .dot-logistics { background: #60a5fa; } .dot-urgent { background: #f87171; }
+
       #disclaimer {
-        margin: 0 0 22px;
-        padding: 10px 14px;
-        display: flex; gap: 10px; align-items: flex-start;
-        border: 1px solid var(--warn-line);
-        background: var(--warn-bg);
-        border-radius: var(--radius-sm);
-        font-size: 14px;
-        color: #5a3b00;
+        margin: 0; padding: 7px 22px; background: var(--warn-bg); color: #7a3e00; border-bottom: 1px solid #f3d9a4;
+        font-size: 13px; display: flex; gap: 8px; align-items: center;
       }
-      #disclaimer::before { content: "!"; flex: none; width: 20px; height: 20px; border-radius: 50%; background: #c47b00; color: #fff; font-weight: 700; font-size: 13px; line-height: 20px; text-align: center; margin-top: 1px; }
+      #disclaimer::before { content: "!"; flex: none; width: 16px; height: 16px; border-radius: 50%; background: var(--warn); color: #fff; font-weight: 800; font-size: 11px; line-height: 16px; text-align: center; }
 
-      main { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(320px, 1fr); gap: 20px; padding-bottom: 48px; align-items: start; }
-      section {
-        background: var(--surface);
-        border: 1px solid var(--line);
-        border-radius: var(--radius);
-        padding: 18px;
-        box-shadow: var(--shadow);
+      /* Workspace */
+      main {
+        flex: 1; display: grid; grid-template-columns: 250px minmax(0, 1fr) 330px; gap: 16px;
+        padding: 16px 22px 22px; max-width: 1480px; width: 100%; margin: 0 auto; align-items: start;
       }
-      aside { display: grid; gap: 16px; align-content: start; position: sticky; top: 16px; }
-      aside section { padding: 16px; }
-      h2 { font-size: 12px; font-weight: 700; margin: 0 0 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
-      section > p.muted { margin: -4px 0 12px; font-size: 13px; line-height: 1.45; }
-      .empty, .muted { color: var(--muted); }
+      .rail { display: grid; gap: 14px; align-content: start; position: sticky; top: 16px; }
+      .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); box-shadow: var(--shadow); padding: 14px 16px; }
+      .card h2 { margin: 0 0 10px; font-size: 11.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); display: flex; align-items: center; gap: 8px; }
+      .card .hint { margin: 0 0 10px; color: var(--muted); font-size: 12.5px; }
+      .muted, .empty { color: var(--muted); }
+      .empty { font-size: 13px; }
 
-      /* Conversation */
-      #conversation { display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; max-height: 58vh; min-height: 220px; overflow-y: auto; padding: 4px 6px 4px 2px; }
-      #conversation .empty { margin: auto; text-align: center; }
-      .message { max-width: 86%; border-radius: 14px; padding: 10px 14px; border: 1px solid transparent; }
-      .message.user { align-self: flex-end; background: var(--brand-soft); border-color: #cfdeed; border-bottom-right-radius: 4px; }
-      .message.assistant { align-self: flex-start; background: var(--surface); border-color: var(--line); border-bottom-left-radius: 4px; }
-      .message .who { margin: 0 0 2px; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
-      .message .text { margin: 0; white-space: pre-wrap; line-height: 1.5; }
+      /* Routing legend */
+      .legend { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+      .legend li { display: grid; grid-template-columns: 10px 1fr; gap: 10px; align-items: start; padding: 8px 10px; border-radius: var(--r-sm); border: 1px solid var(--line); background: var(--panel-2); }
+      .legend .dot { width: 10px; height: 10px; border-radius: 50%; margin-top: 5px; }
+      .legend b { display: block; font-size: 13px; }
+      .legend span { display: block; font-size: 12px; color: var(--muted); }
+      .legend code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; color: var(--ink-2); }
+      .legend li.routine { border-color: var(--routine-line); background: var(--routine-bg); }
+      .legend li.logistics { border-color: var(--logistics-line); background: var(--logistics-bg); }
+      .legend li.urgent { border-color: var(--urgent-line); background: var(--urgent-bg); }
+      .legend .dot.routine { background: var(--routine); } .legend .dot.logistics { background: var(--logistics); } .legend .dot.urgent { background: var(--urgent); }
+
+      /* Stats */
+      dl { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0; }
+      dl > div { padding: 9px 11px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--panel-2); }
+      dl > div:nth-child(2) { grid-column: 1 / -1; }
+      dt { font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+      dd { margin: 2px 0 0; font-size: 16px; font-weight: 650; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+      #stat-calls-by-tier { font-size: 13px; font-weight: 500; }
+      #stat-savings { color: var(--routine); }
+      #stats-notes { margin: 8px 0 0; font-size: 11.5px; }
+
+      /* Chat column */
+      .chat { display: flex; flex-direction: column; height: calc(100vh - 56px - 36px - 38px); min-height: 420px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); box-shadow: var(--shadow); overflow: hidden; }
+      .chat-head { display: flex; align-items: center; gap: 10px; padding: 12px 18px; border-bottom: 1px solid var(--line); }
+      .chat-head h2 { margin: 0; font-size: 14px; font-weight: 700; }
+      .chat-head .sub { color: var(--muted); font-size: 12.5px; }
+      #conversation { flex: 1; min-height: 0; overflow-y: auto; padding: 18px 18px 10px; display: flex; flex-direction: column; gap: 14px; background: linear-gradient(180deg, #fbfcfd, #f6f8fa); }
+      #conversation .empty { margin: auto; text-align: center; max-width: 36ch; }
+      .message { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 10px; max-width: 82%; }
+      .message.user { align-self: flex-end; grid-template-columns: minmax(0, 1fr) 30px; }
+      .avatar { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 700; color: #fff; background: #7b8794; align-self: end; }
+      .message.user .avatar { order: 2; background: var(--brand-2); }
+      .avatar.assistant { background: linear-gradient(135deg, #5aa8ff, #2f7cf6); }
+      .avatar.a { background: #7c3aed; } .avatar.p { background: #0f766e; } .avatar.y { background: var(--brand-2); }
+      .bubble { min-width: 0; }
+      .message .who { margin: 0 0 3px; font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+      .message.user .who { text-align: right; }
+      .message .text { margin: 0; padding: 10px 14px; border-radius: 16px; white-space: pre-wrap; line-height: 1.5; background: #fff; border: 1px solid var(--line); border-bottom-left-radius: 4px; }
+      .message.user .text { background: var(--brand-2); color: #fff; border-color: var(--brand-2); border-bottom-left-radius: 16px; border-bottom-right-radius: 4px; }
+      .message.assistant[data-message-class="urgent"] .text { border-color: var(--urgent-line); }
       .route-badge {
-        display: inline-flex; align-items: center; gap: 6px;
-        margin: 0 0 8px; padding: 3px 10px 3px 8px;
-        border: 1px solid; border-radius: 999px;
-        font-size: 11.5px; font-weight: 600; font-variant-numeric: tabular-nums;
-        max-width: 100%; white-space: normal;
+        display: inline-flex; align-items: center; gap: 6px; margin: 0 0 6px; padding: 3px 10px 3px 8px;
+        border: 1px solid; border-radius: 999px; font-size: 11.5px; font-weight: 600; font-variant-numeric: tabular-nums; max-width: 100%;
       }
-      .route-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; flex: none; }
-      .route-routine { background: var(--routine-bg); border-color: #b7dfc3; color: #14532d; }
-      .route-logistics { background: var(--logistics-bg); border-color: #bcd3f2; color: #0b3f7a; }
-      .route-urgent { background: var(--urgent-bg); border-color: #f3c0bb; color: #7f1d1d; }
-      .route-dot-routine { background: var(--routine); }
-      .route-dot-logistics { background: var(--logistics); }
-      .route-dot-urgent { background: var(--urgent); }
-      .message.assistant[data-message-class="urgent"] { border-color: #f3c0bb; }
-      .escalation { margin: 10px 0 0; padding: 9px 12px; background: var(--urgent-bg); border-left: 4px solid var(--urgent); border-radius: 6px; color: #7f1d1d; font-size: 14px; }
+      .route-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+      .route-routine { background: var(--routine-bg); border-color: var(--routine-line); color: #14532d; }
+      .route-logistics { background: var(--logistics-bg); border-color: var(--logistics-line); color: #0b3f7a; }
+      .route-urgent { background: var(--urgent-bg); border-color: var(--urgent-line); color: #7f1d1d; }
+      .route-dot-routine { background: var(--routine); } .route-dot-logistics { background: var(--logistics); } .route-dot-urgent { background: var(--urgent); }
+      .escalation { margin: 8px 0 0; padding: 9px 12px; background: var(--urgent-bg); border: 1px solid var(--urgent-line); border-left: 4px solid var(--urgent); border-radius: 8px; color: #7f1d1d; font-size: 13.5px; }
       p.escalation[data-role="error"] { align-self: stretch; }
-      .tool-note { margin: 8px 0 0; font-size: 12.5px; color: var(--muted); }
+      .tool-note { margin: 6px 0 0; font-size: 12px; color: var(--muted); }
 
       /* Composer */
       #composer-form {
         display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; gap: 8px; align-items: center;
-        padding: 10px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface-2);
+        padding: 12px 14px; border-top: 1px solid var(--line); background: var(--panel);
       }
       #composer-form label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-      #composer-form p { grid-column: 1 / -1; margin: 2px 2px 0; font-size: 12.5px; }
-      #sender, #composer, #mic-control, #send-button { height: 42px; }
+      #composer-form p { grid-column: 1 / -1; margin: 0 2px; font-size: 11.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      #sender, #composer, #mic-control, #send-button { height: 40px; }
       #sender {
-        padding: 0 32px 0 12px; border: 1px solid var(--line-strong); border-radius: 999px; background: #fff; font: inherit; font-weight: 600; color: var(--brand);
+        padding: 0 30px 0 12px; border: 1px solid var(--line-strong); border-radius: 999px; background: #fff; font: inherit; font-weight: 600; color: var(--brand-2);
         appearance: none; -webkit-appearance: none;
-        background-image: linear-gradient(45deg, transparent 50%, var(--brand) 50%), linear-gradient(135deg, var(--brand) 50%, transparent 50%);
-        background-position: calc(100% - 17px) 18px, calc(100% - 12px) 18px; background-size: 5px 5px, 5px 5px; background-repeat: no-repeat;
+        background-image: linear-gradient(45deg, transparent 50%, var(--brand-2) 50%), linear-gradient(135deg, var(--brand-2) 50%, transparent 50%);
+        background-position: calc(100% - 16px) 17px, calc(100% - 11px) 17px; background-size: 5px 5px, 5px 5px; background-repeat: no-repeat;
       }
       #composer { padding: 0 14px; border: 1px solid var(--line-strong); border-radius: 999px; font: inherit; background: #fff; min-width: 0; }
-      #composer::placeholder { color: #93a0ae; }
-      #mic-control { width: 42px; padding: 0; border-radius: 50%; font-size: 18px; line-height: 1; background: #fff; color: var(--brand); border-color: var(--line-strong); }
+      #composer::placeholder { color: #98a3b0; }
+      #mic-control { width: 40px; padding: 0; border-radius: 50%; border: 1px solid var(--line-strong); background: #fff; color: var(--brand-2); font-size: 17px; line-height: 1; cursor: pointer; }
       #mic-control[data-listening="true"] { background: var(--urgent); border-color: var(--urgent); color: #fff; animation: pulse 1.2s ease-in-out infinite; }
-      #mic-control:disabled { opacity: 0.45; cursor: not-allowed; }
-      @keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(179, 38, 30, .45); } 50% { box-shadow: 0 0 0 8px rgba(179, 38, 30, 0); } }
-      #send-button { padding: 0 20px; border-radius: 999px; font-weight: 600; }
+      #mic-control:disabled { opacity: .45; cursor: not-allowed; }
+      @keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(192, 38, 31, .45); } 50% { box-shadow: 0 0 0 8px rgba(192, 38, 31, 0); } }
+      #send-button { padding: 0 20px; border-radius: 999px; }
       #send-button[data-busy="true"] { opacity: .6; }
 
       /* Buttons */
-      button {
-        padding: 9px 14px; border: 1px solid var(--brand); background: var(--brand); color: var(--brand-ink);
-        border-radius: var(--radius-sm); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer;
-        transition: background .15s, box-shadow .15s, transform .05s;
+      .btn, #send-button, #replay-control, #digest-control, #digest-email, #digest-speak, .ack-alert {
+        padding: 8px 14px; border-radius: var(--r-sm); border: 1px solid var(--brand-2); background: var(--brand-2); color: #fff;
+        font-weight: 600; font-size: 13.5px; cursor: pointer; transition: background .15s, transform .05s;
       }
-      button:hover { background: #2a5f90; }
-      button:active { transform: translateY(1px); }
+      .btn:hover, #send-button:hover, #digest-control:hover { background: #2a5f90; }
+      .btn:active, #send-button:active { transform: translateY(1px); }
+      #replay-control, #digest-email, #digest-speak, .ack-alert { background: #fff; color: var(--brand-2); border-color: var(--line-strong); }
+      #replay-control:hover, #digest-email:hover:not(:disabled), #digest-speak:hover, .ack-alert:hover { background: var(--brand-soft); }
       button:disabled { opacity: .45; cursor: not-allowed; transform: none; }
-      button:focus-visible, #composer:focus-visible, #sender:focus-visible { outline: 3px solid rgba(31, 78, 121, .35); outline-offset: 2px; }
-      .secondary, #replay-control, #digest-email, #digest-speak, .ack-alert { background: #fff; color: var(--brand); border-color: var(--line-strong); }
-      .secondary:hover, #replay-control:hover, #digest-email:hover:not(:disabled), #digest-speak:hover, .ack-alert:hover { background: var(--brand-soft); }
-      .button-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 10px; }
+      button:focus-visible, #composer:focus-visible, #sender:focus-visible { outline: 3px solid rgba(47, 124, 246, .35); outline-offset: 2px; }
       [data-replaying="true"], [data-busy="true"] { opacity: .7; cursor: progress; }
-      #replay-status, #digest-status, #speech-status, #alert-delivery { margin: 0; font-size: 12.5px; color: var(--muted); }
+      .button-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 8px; }
+      .button-row button { width: 100%; }
+      #replay-status, #digest-status, #speech-status, #alert-delivery, #mic-status { margin: 0; font-size: 12px; color: var(--muted); }
+      #replay-status { margin-top: 8px; }
       #speech-status, #alert-delivery { margin-top: 4px; }
       #digest-audio { width: 100%; margin-top: 10px; }
 
       /* Alerts */
       #alerts { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-      .alert { padding: 10px 12px; background: var(--urgent-bg); border: 1px solid #f3c0bb; border-left: 4px solid var(--urgent); border-radius: var(--radius-sm); }
-      .alert[data-acknowledged="true"] { opacity: .65; border-color: var(--line); border-left-color: #9aa5b1; background: var(--surface-2); }
-      .alert .alert-meta { margin: 0 0 4px; font-size: 11.5px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; color: #7f1d1d; }
+      .alert { padding: 10px 12px; background: var(--urgent-bg); border: 1px solid var(--urgent-line); border-left: 4px solid var(--urgent); border-radius: var(--r-sm); }
+      .alert[data-acknowledged="true"] { opacity: .6; border-color: var(--line); border-left-color: #9aa5b1; background: var(--panel-2); }
+      .alert .alert-meta { margin: 0 0 4px; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: #7f1d1d; }
       .alert[data-acknowledged="true"] .alert-meta { color: var(--muted); }
-      .alert .alert-text { margin: 0 0 6px; }
-      .alert .alert-email { margin: 0 0 8px; font-size: 12.5px; color: var(--ink-soft); }
-      .alert button { padding: 5px 11px; font-size: 13px; }
+      .alert .alert-text { margin: 0 0 6px; font-size: 13.5px; }
+      .alert .alert-email { margin: 0 0 8px; font-size: 12px; color: var(--ink-2); }
+      .alert button { padding: 5px 11px; font-size: 12.5px; }
       #alerts-panel[data-open-count]:not([data-open-count="0"]) h2::after {
-        content: attr(data-open-count) " open"; margin-left: 8px; padding: 1px 8px; border-radius: 999px; background: var(--urgent); color: #fff; font-size: 10.5px; letter-spacing: .02em;
+        content: attr(data-open-count) " open"; padding: 1px 8px; border-radius: 999px; background: var(--urgent); color: #fff; font-size: 10.5px; letter-spacing: .02em;
       }
 
       /* Tool actions */
-      #tool-actions { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; max-height: 220px; overflow-y: auto; }
-      .tool-action { display: grid; gap: 2px; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-2); font-size: 12.5px; }
-      .tool-name { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 600; color: var(--brand); }
-      .tool-args { color: var(--ink-soft); }
-      .tool-result { color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; overflow-wrap: anywhere; }
+      #tool-actions { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; max-height: 200px; overflow-y: auto; }
+      .tool-action { display: grid; gap: 2px; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--panel-2); font-size: 12.5px; }
+      .tool-name { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 600; color: var(--brand-2); }
+      .tool-args { color: var(--ink-2); }
+      .tool-result { color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; overflow-wrap: anywhere; }
 
-      /* Stats */
-      dl { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0; }
-      dl > div { padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-2); }
-      dl > div:nth-child(2), dl > div:last-child { grid-column: 1 / -1; }
-      dt { font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
-      dd { margin: 2px 0 0; font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
-      #stat-calls-by-tier { font-size: 14px; }
-      #stat-savings { color: var(--routine); }
-      #stats-notes { margin: 10px 0 0; font-size: 12px; }
-
-      @media (max-width: 900px) {
-        main { grid-template-columns: 1fr; }
-        aside { position: static; }
-        #conversation { max-height: 48vh; }
+      @media (max-width: 1100px) {
+        main { grid-template-columns: minmax(0, 1fr) 320px; }
+        .rail.left { grid-column: 1 / -1; grid-template-columns: 1fr 1fr; position: static; }
+        .chat { min-height: 60vh; max-height: none; }
+      }
+      @media (max-width: 760px) {
+        main { grid-template-columns: 1fr; padding: 12px 14px 20px; }
+        .rail, .rail.left { position: static; grid-template-columns: 1fr; }
+        .tiers { display: none; }
         .message { max-width: 94%; }
-        #composer-form { grid-template-columns: 1fr auto; }
+        #composer-form { grid-template-columns: 1fr auto auto; }
         #sender { grid-column: 1 / -1; justify-self: start; }
       }
-      @media (prefers-reduced-motion: reduce) { #mic-control[data-listening="true"] { animation: none; } html { scroll-behavior: auto; } }
+      @media (prefers-reduced-motion: reduce) { #mic-control[data-listening="true"] { animation: none; } }
     </style>
   </head>
   <body>
-    <header>
-      <div class="masthead">
-        <h1>Nod First Triage Router</h1>
-        <p class="tagline">Every message about Mom gets the model it deserves, not the biggest one.</p>
+    <header class="appbar">
+      <div class="brand"><span class="mark">N</span> Nod First Triage Router <small>· caregiving messages, routed by risk</small></div>
+      <span id="mode-pill" class="mode-pill" data-mode="">checking</span>
+      <div class="tiers" id="tiers" aria-label="Routes and the model each one uses">
+        <span class="tier"><span class="dot dot-routine"></span><b>routine</b> <code id="tier-routine">…</code></span>
+        <span class="tier"><span class="dot dot-logistics"></span><b>logistics</b> <code id="tier-logistics">…</code></span>
+        <span class="tier"><span class="dot dot-urgent"></span><b>urgent</b> <code id="tier-urgent">…</code></span>
       </div>
-      <p id="mode-note">
-        Routine check-ins go to the small model, logistics to the mid tier, and anything
-        urgent-health bypasses the router to the strongest model. Each reply shows the
-        route, model, latency, and estimated cost from the local API.
-      </p>
-      <p id="disclaimer" role="note">
-        Not medical advice. This demo classifies caregiving messages and never
-        diagnoses. If something may be an emergency, call 911 or Mom's doctor right away.
-      </p>
     </header>
+    <p id="disclaimer" role="note">
+      Not medical advice. This demo classifies caregiving messages and never diagnoses.
+      If something may be an emergency, call 911 or Mom's doctor right away.
+    </p>
 
     <main>
-      <section aria-labelledby="chat-heading">
-        <h2 id="chat-heading">Conversation</h2>
+      <aside class="rail left">
+        <section class="card" aria-labelledby="routing-heading">
+          <h2 id="routing-heading">How messages route</h2>
+          <ul class="legend">
+            <li class="routine"><span class="dot routine"></span><div><b>Routine</b><span>Mood check-ins, chit-chat → cheapest model</span><code id="legend-routine">…</code></div></li>
+            <li class="logistics"><span class="dot logistics"></span><div><b>Logistics</b><span>Appointments, sibling tasks → mid tier + tools</span><code id="legend-logistics">…</code></div></li>
+            <li class="urgent"><span class="dot urgent"></span><div><b>Urgent-health</b><span>Falls, chest pain, confusion, missed dose → strongest model, bypasses the router</span><code id="legend-urgent">…</code></div></li>
+          </ul>
+          <p id="mode-note" class="hint" style="margin: 10px 0 0">Routine and logistics go through the inference router, which picks the serving model.</p>
+        </section>
+
+        <section id="stats-panel" class="card" aria-labelledby="stats-heading" data-source="GET /stats" data-cost-label="estimated" data-total-calls="0">
+          <h2 id="stats-heading">Stats (estimated cost)</h2>
+          <dl>
+            <div><dt>Inference calls</dt><dd id="stat-total-calls" data-value="0">0</dd></div>
+            <div><dt>Calls by tier</dt><dd id="stat-calls-by-tier" data-value="{}">no calls yet</dd></div>
+            <div><dt>Avg latency</dt><dd id="stat-avg-latency" data-value="">—</dd></div>
+            <div><dt>Spend</dt><dd id="stat-spend" data-value="0">$0.00</dd></div>
+            <div><dt>Saved vs large model</dt><dd id="stat-savings" data-value="0">$0.00</dd></div>
+          </dl>
+          <p id="stats-notes" class="muted"></p>
+        </section>
+
+        <section class="card" aria-labelledby="replay-heading">
+          <h2 id="replay-heading">Demo replay</h2>
+          <p class="hint">Five scripted messages: one routine, two logistics, two urgent.</p>
+          <button id="replay-control" type="button" style="width: 100%">Replay the five-message demo</button>
+          <p id="replay-status" role="status" data-messages="0" data-routine="0" data-logistics="0" data-urgent="0" data-replay-count="0">Replay not started.</p>
+        </section>
+      </aside>
+
+      <section class="chat" aria-labelledby="chat-heading">
+        <div class="chat-head">
+          <h2 id="chat-heading">Sibling thread</h2>
+          <span class="sub">Anna, Pavel and you, one shared conversation about Mom</span>
+        </div>
         <div
           id="conversation"
           role="log"
@@ -208,7 +272,7 @@
           data-message-count="0"
           data-reply-count="0"
         >
-          <p class="empty" id="conversation-empty">No messages yet.</p>
+          <p class="empty" id="conversation-empty">No messages yet. Try “Mom had a fall in the kitchen this morning” or press Replay.</p>
         </div>
         <form id="composer-form" autocomplete="off">
           <label for="sender">Writing as</label>
@@ -229,33 +293,19 @@
         </form>
       </section>
 
-      <aside>
-        <section aria-labelledby="replay-heading">
-          <h2 id="replay-heading">Demo replay</h2>
-          <p class="muted">
-            Replays the five scripted messages in order: one routine, two logistics,
-            and two urgent.
-          </p>
-          <button id="replay-control" type="button">Replay the five-message demo</button>
-          <p
-            id="replay-status"
-            role="status"
-            data-messages="0"
-            data-routine="0"
-            data-logistics="0"
-            data-urgent="0"
-            data-replay-count="0"
-          >
-            Replay not started.
-          </p>
+      <aside class="rail">
+        <section id="alerts-panel" class="card" aria-labelledby="alerts-heading" data-source="GET /alerts" data-open-count="0">
+          <h2 id="alerts-heading">Urgent alerts</h2>
+          <p class="hint">Every urgent-health message lands here for the siblings, with the escalation note, until someone acknowledges it.</p>
+          <p id="alert-delivery" class="muted" data-enabled="false">Email delivery: checking...</p>
+          <ul id="alerts" data-alert-count="0">
+            <li class="empty" id="alerts-empty">No urgent alerts.</li>
+          </ul>
         </section>
 
-        <section id="digest-panel" aria-labelledby="digest-heading" data-source="GET /digest">
+        <section id="digest-panel" class="card" aria-labelledby="digest-heading" data-source="GET /digest">
           <h2 id="digest-heading">Daily digest</h2>
-          <p class="muted">
-            Asks the assistant for today's digest. The request is routine, so it
-            goes to the small model; the text itself comes straight from the store.
-          </p>
+          <p class="hint">Routine route, small model; the text comes straight from the store.</p>
           <div class="button-row">
             <button id="digest-control" type="button">Ask for today's digest</button>
             <button id="digest-email" type="button" disabled>Email digest to siblings</button>
@@ -266,56 +316,11 @@
           <audio id="digest-audio" controls hidden></audio>
         </section>
 
-        <section id="alerts-panel" aria-labelledby="alerts-heading" data-source="GET /alerts" data-open-count="0">
-          <h2 id="alerts-heading">Urgent alerts for the siblings</h2>
-          <p class="muted">
-            Every urgent-health message is recorded here so Anna and Pavel see it,
-            even if they were not in the thread. Acknowledge means "I've seen it".
-          </p>
-          <p id="alert-delivery" class="muted" data-enabled="false">Email delivery: checking...</p>
-          <ul id="alerts" data-alert-count="0">
-            <li class="empty" id="alerts-empty">No urgent alerts.</li>
-          </ul>
-        </section>
-
-        <section aria-labelledby="tools-heading">
+        <section class="card" aria-labelledby="tools-heading">
           <h2 id="tools-heading">Tool actions</h2>
           <ul id="tool-actions" data-action-count="0">
             <li class="empty" id="tool-actions-empty">No tool actions yet.</li>
           </ul>
-        </section>
-
-        <section
-          id="stats-panel"
-          aria-labelledby="stats-heading"
-          data-source="GET /stats"
-          data-cost-label="estimated"
-          data-total-calls="0"
-        >
-          <h2 id="stats-heading">Stats (estimated cost)</h2>
-          <dl>
-            <div>
-              <dt>Inference calls</dt>
-              <dd id="stat-total-calls" data-value="0">0</dd>
-            </div>
-            <div>
-              <dt>Calls by tier</dt>
-              <dd id="stat-calls-by-tier" data-value="{}">no calls yet</dd>
-            </div>
-            <div>
-              <dt>Average latency</dt>
-              <dd id="stat-avg-latency" data-value="">no calls yet</dd>
-            </div>
-            <div>
-              <dt>Estimated spend</dt>
-              <dd id="stat-spend" data-value="0">$0.00 (estimated)</dd>
-            </div>
-            <div>
-              <dt>Estimated savings vs large model</dt>
-              <dd id="stat-savings" data-value="0">$0.00 (estimated)</dd>
-            </div>
-          </dl>
-          <p id="stats-notes" class="muted"></p>
         </section>
       </aside>
     </main>
@@ -425,20 +430,33 @@
           return { text: 'not reported', source: 'unreported' };
         }
 
+        function avatarFor(name) {
+          var el = document.createElement('span');
+          var initial = String(name || 'Y').trim().charAt(0).toUpperCase();
+          el.className = 'avatar ' + (name === 'assistant' ? 'assistant' : initial.toLowerCase());
+          el.setAttribute('aria-hidden', 'true');
+          el.textContent = name === 'assistant' ? 'N' : initial;
+          return el;
+        }
+
         function appendUserMessage(text, sender) {
           removePlaceholder(conversation, conversationEmpty);
           var item = document.createElement('article');
           item.className = 'message user';
           item.dataset.role = 'user';
           item.dataset.sender = sender || 'You';
+          var bubble = document.createElement('div');
+          bubble.className = 'bubble';
           var who = document.createElement('p');
           who.className = 'who';
           who.textContent = sender || 'You';
           var body_ = document.createElement('p');
           body_.className = 'text';
           body_.textContent = text;
-          item.appendChild(who);
-          item.appendChild(body_);
+          bubble.appendChild(who);
+          bubble.appendChild(body_);
+          item.appendChild(bubble);
+          item.appendChild(avatarFor(sender || 'You'));
           conversation.appendChild(item);
           conversation.dataset.messageCount = String(
             Number(conversation.dataset.messageCount) + 1
@@ -463,6 +481,10 @@
           item.dataset.role = 'assistant';
           item.dataset.messageClass = turn.message_class;
           item.dataset.route = turn.route;
+          item.appendChild(avatarFor('assistant'));
+          var bubble = document.createElement('div');
+          bubble.className = 'bubble';
+          item.appendChild(bubble);
 
           var badge = document.createElement('p');
           badge.className = 'route-badge route-' + turn.message_class;
@@ -495,17 +517,17 @@
                 ')'
             )
           );
-          item.appendChild(badge);
+          bubble.appendChild(badge);
 
           var who = document.createElement('p');
           who.className = 'who';
           who.textContent = 'Caregiver assistant';
-          item.appendChild(who);
+          bubble.appendChild(who);
 
           var text = document.createElement('p');
           text.className = 'text';
           text.textContent = turn.reply;
-          item.appendChild(text);
+          bubble.appendChild(text);
 
           if (
             turn.urgent &&
@@ -516,7 +538,7 @@
             escalation.className = 'escalation';
             escalation.dataset.escalation = 'urgent';
             escalation.textContent = turn.escalation_note;
-            item.appendChild(escalation);
+            bubble.appendChild(escalation);
           }
 
           if (turn.tool_actions && turn.tool_actions.length) {
@@ -526,7 +548,7 @@
             note.textContent =
               turn.tool_actions.length +
               ' tool action(s) recorded in the Tool actions panel.';
-            item.appendChild(note);
+            bubble.appendChild(note);
           }
 
           conversation.appendChild(item);
@@ -610,16 +632,8 @@
               ? 'no calls yet'
               : stats.average_latency_ms.toFixed(1) + ' ms'
           );
-          setStat(
-            'stat-spend',
-            stats.estimated_spend_usd,
-            money(stats.estimated_spend_usd) + ' (estimated)'
-          );
-          setStat(
-            'stat-savings',
-            stats.estimated_savings_usd,
-            money(stats.estimated_savings_usd) + ' (estimated)'
-          );
+          setStat('stat-spend', stats.estimated_spend_usd, money(stats.estimated_spend_usd));
+          setStat('stat-savings', stats.estimated_savings_usd, money(stats.estimated_savings_usd));
           statsPanel.dataset.totalCalls = String(stats.total_calls);
           statsPanel.dataset.callsByTier = JSON.stringify(stats.calls_by_tier);
           statsPanel.dataset.averageLatencyMs =
@@ -650,8 +664,12 @@
           var text = document.createElement('p');
           text.className = 'text';
           text.textContent = entry.content;
-          item.appendChild(who);
-          item.appendChild(text);
+          var bubble = document.createElement('div');
+          bubble.className = 'bubble';
+          bubble.appendChild(who);
+          bubble.appendChild(text);
+          item.appendChild(avatarFor('assistant'));
+          item.appendChild(bubble);
           conversation.appendChild(item);
           conversation.dataset.replyCount = String(
             Number(conversation.dataset.replyCount) + 1
@@ -659,7 +677,23 @@
           scrollConversation();
         }
 
+        function renderMode(thread) {
+          var pill = document.getElementById('mode-pill');
+          var mode = thread.mode || '';
+          pill.dataset.mode = mode;
+          pill.textContent = mode === 'do' ? 'live · inference router'
+            : mode === 'client' ? 'live · client routing'
+            : mode === 'mock' ? 'mock · offline' : 'unknown mode';
+          var tiers = thread.tiers || {};
+          ['routine', 'logistics', 'urgent'].forEach(function (key) {
+            var text = tiers[key] || '…';
+            document.getElementById('tier-' + key).textContent = text;
+            document.getElementById('legend-' + key).textContent = text;
+          });
+        }
+
         function renderThread(thread) {
+          renderMode(thread);
           var current = senderSelect.value;
           while (senderSelect.options.length > 1) {
             senderSelect.remove(1);
