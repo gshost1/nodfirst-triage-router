@@ -23,23 +23,33 @@ MEDICATIONS: tuple[tuple[str, str, bool], ...] = (
 )
 
 APPOINTMENTS: tuple[tuple[str, str], ...] = (
+    ("Blood draw at the lab, fasting", "Wednesday 8:00 am"),
     ("Cardiology follow-up with Dr. Reyes", "Thursday 10:30 am"),
     ("Pharmacy refill delivery (metformin, lisinopril)", "Friday afternoon"),
+    ("Hair appointment at Marta's salon", "Saturday 11:00 am"),
     ("Physiotherapy, balance exercises", "next Tuesday 2:00 pm"),
+    ("Podiatrist, toenail care", "next Thursday 9:30 am"),
     ("Eye exam, new reading glasses", "October 24, 11:00 am"),
+    ("Dentist, cleaning and denture check", "October 28, 1:00 pm"),
+    ("Flu shot at the pharmacy clinic", "November 3, 10:00 am"),
 )
 
-# All open at the start of the demo: the family assigns them in the chat.
 SIBLING_TASKS: tuple[tuple[str, str], ...] = (
+    # Three drives left open for the demo; everything else already has a name.
+    ("unassigned", "Drive Mom to the fasting blood draw on Wednesday at 8 am"),
     ("unassigned", "Drive Mom to cardiology on Thursday at 10:30 am"),
-    ("unassigned", "Call the pharmacy to confirm Friday's refill delivery"),
     ("unassigned", "Take Mom to physiotherapy next Tuesday at 2 pm"),
-    ("unassigned", "Drive Mom to the eye exam on October 24"),
-    ("unassigned", "Weekend visit and check the bathroom grab bar"),
-    ("unassigned", "Replace the kitchen night light"),
-    ("unassigned", "Groceries and Sunday meal prep"),
-    ("unassigned", "Sort the weekly pill organizer on Sunday evening"),
-    ("unassigned", "Call Mom every evening this week"),
+    ("Anna", "Call the pharmacy to confirm Friday's refill delivery"),
+    ("Pavel", "Take Mom to the hair salon on Saturday"),
+    ("Anna", "Drive Mom to the podiatrist next Thursday"),
+    ("Pavel", "Drive Mom to the eye exam on October 24"),
+    ("Anna", "Take Mom to the dentist on October 28"),
+    ("Pavel", "Take Mom for her flu shot on November 3"),
+    ("Anna", "Weekend visit and check the bathroom grab bar"),
+    ("Pavel", "Replace the kitchen night light"),
+    ("Pavel", "Groceries and Sunday meal prep"),
+    ("Anna", "Sort the weekly pill organizer on Sunday evening"),
+    ("Pavel", "Call Mom every evening this week"),
 )
 
 URGENT_REPLY = (

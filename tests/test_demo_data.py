@@ -20,13 +20,13 @@ def test_seed_is_idempotent_and_grounds_the_digest(tmp_path: Path) -> None:
     assert seed_demo(store)["seeded"] is False
     snapshot = store.snapshot()
     assert len(snapshot["appointments"]) == len(APPOINTMENTS)
-    assert all(t["sibling"] == "unassigned" for t in snapshot["sibling_tasks"])
-    assert len(store.open_tasks()) == 9
+    assert {t["sibling"] for t in snapshot["sibling_tasks"]} == {"unassigned", "Anna", "Pavel"}
+    assert len(store.open_tasks()) == 3
     claimed = store.assign_sibling_task("Pavel", "drive Mom to cardiology Thursday")
     assert claimed["claimed_open_task"] is True and "10:30" in claimed["task"]
-    assert len(store.open_tasks()) == 8
+    assert len(store.open_tasks()) == 2
     fresh = store.assign_sibling_task("Anna", "Bake a birthday cake")
-    assert "claimed_open_task" not in fresh and len(store.open_tasks()) == 8
+    assert "claimed_open_task" not in fresh and len(store.open_tasks()) == 13
     assert [m["content"] for m in store.recent_messages(50)] == [row[2] for row in THREAD]
     digest = store.daily_digest()
     assert "metformin" in digest["summary"] and digest["alerts_total"] == 1

@@ -219,10 +219,10 @@ tasks); the model never paraphrases it, so nothing in the digest is invented.
 
 **Load demo week** (left rail) fills Mom's record without a model call:
 six medication entries (today's 8 am metformin missed), four appointments
-(cardiology Thursday, refill Friday, physio next Tuesday, eye exam), nine
-**open** sibling tasks (nobody assigned yet: the family assigns them in the
-chat, "Pavel takes the cardiology drive" claims the open task instead of
-adding a duplicate), a twelve message sibling thread spread over the last
+(nine, from a fasting blood draw Wednesday to a flu shot in November),
+fourteen sibling tasks of which three drives are **open** (the family assigns
+them in the chat, "Pavel takes the cardiology drive" claims the open task
+instead of adding a duplicate), a twelve message sibling thread spread over the last
 day, and one **open** urgent alert (dizziness) so the red card and
 Acknowledge are part of the demo. `POST /demo/seed` is idempotent; `GET /demo` reports whether
 it has run. Data lives in `core/demo_data.py`. Verified live 2026-10-12
