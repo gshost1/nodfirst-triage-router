@@ -27,11 +27,12 @@ store, and an optional DigitalOcean Inference Router path.
 | Full chat flow in `ROUTER_MODE=do` | **Verified 2026-10-12, latest run clean** (see "Live rehearsal results" below): all five scripted messages classified as expected, both urgent messages served by `qwen3.8-max` via the direct-large bypass, routine/logistics served by `glm-5.3-flash`/`glm-5.3` through `router:nodfirst`, every turn under 4 s, 12 calls, estimated spend $0.006 |
 | Live bugs found and fixed during rehearsal | Thinking tiers returned empty text until `reasoning_effort=none`; summary tools overrode urgent replies; `qwen3.8-max` called a lookup tool on "Mom had a fall"; `glm-5.3` asked for a time instead of booking. All fixed and re-verified live |
 | DigitalOcean text-to-speech (`qwen3-tts-voicedesign`) | Verified 2026-10-12: `POST /digest/speak` returned a 26 s WAV through the app; inputs over ~400 chars timed out, so the digest is capped at 320 |
+| Voice mode (spoken conversation) | **Verified live 2026-10-12** in two browsers (see "Voice mode results" below): typed or spoken question -> logistics route -> cloud voice reply played to the end; 8.6 s and 15.6 s clip generation; a Chromium build without speech recognition falls back to typed questions with spoken replies |
 | Botmail alert and digest email | Verified 2026-10-12: urgent alert and digest both delivered (Botmail events queued, sent, delivered) |
 | Inbound webhook (`POST /inbound`) | Verified locally with JSON and Twilio-shaped form posts; no carrier account attached |
 | Nous Hermes model or agent used/deployed | **No.** This app is Hermes-ready only |
 | GitHub repository | Public: <https://github.com/gshost1/nodfirst-triage-router> |
-| Spend | Under $0.10 total across all live rehearsals and probes on 2026-10-12; costs shown anywhere in the app are estimates |
+| Spend | Under $0.10 total across all live rehearsals, voice tests, and probes on 2026-10-12 (the live demo database shows $0.012 estimated for 23 calls); costs shown anywhere in the app are estimates |
 
 ## Architecture
 
@@ -360,6 +361,32 @@ an empty routine reply (thinking model, reasoning budget), a misclassified
 routine message (same cause, in the 16-token classifier), an urgent reply
 replaced by a digest, and a 112 s logistics turn that did not reproduce.
 
+## Voice mode results (2026-10-12, `ROUTER_MODE=do`)
+
+Spoken-reply turns through the real path, cloud voice `qwen3-tts-voicedesign`.
+"Answer" is the chat turn (classifier plus agent), "voice" is the time to make
+the clip, "clip" is how long it played.
+
+| # | Question | Route | Served model | Answer | Voice | Clip | Browser |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | Who is driving Mom today? | logistics | `glm-5.3` | 6 s | 13 s | 10 s | built-in browser pane |
+| 2 | Who is driving Mom today? (typed in voice mode) | logistics | `glm-5.3` | 2.5 s | 11 s | 8.6 s | Chromium build (ego lite) |
+| 3 | Did Mom take her metformin today? (typed in voice mode) | logistics | `glm-5.3` | 5 s | 15.6 s | about 9 s | Chromium build (ego lite) |
+
+Replies stayed grounded: "the only driving task on file is Pavel taking Mom to
+cardiology on Thursday" and "I don't have any medication recorded". Turn 3
+showed the new order of events: typing bubble, "Making the voice reply… 7 s
+(usually 8 to 10 s)", then the text bubble appeared the moment playback began.
+
+Two browser bugs were found and fixed on the way (commits `2c1cdb1`,
+`ef5eb29`): in the Chromium build, speech recognition failed with `network`
+on every start and the loop restarted silently, and the `<audio>` element
+never decoded the WAV although `decodeAudioData` played it. Voice mode now
+stops the loop on fatal recognition errors and takes typed questions, and
+clips play through the Web Audio API. Hands-free listening (you speak, no
+typing) still needs Google Chrome or Safari; it was not re-run there after
+the fixes.
+
 ## Two-minute walkthrough
 
 Prepare one of these two servers, then open <http://127.0.0.1:8000>:
@@ -466,8 +493,8 @@ uv run mypy app.py core router scripts
 uv run ruff check .
 ```
 
-Every test runs in MOCK mode with temporary SQLite files; no test issues a
-provider request. `tests/test_demo.py` covers the five-message mix, the offline
+133 tests as of 2026-10-12. Every test runs in MOCK mode with temporary
+SQLite files; no test issues a provider request. `tests/test_demo.py` covers the five-message mix, the offline
 guarantee, and consistency with the UI replay script.
 
 ## Repository hygiene
