@@ -70,11 +70,11 @@
 
       /* Workspace */
       main {
-        flex: 1; display: grid; grid-template-columns: 250px minmax(0, 1fr) 330px; gap: 16px;
+        flex: 1; display: grid; grid-template-columns: 220px minmax(0, 1fr) 320px; gap: 16px;
         padding: 16px 22px 22px; max-width: 1480px; width: 100%; margin: 0 auto; align-items: start;
       }
       .rail { display: grid; gap: 14px; align-content: start; position: sticky; top: 16px; }
-      .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); box-shadow: var(--shadow); padding: 14px 16px; }
+      .card { min-width: 0; overflow: hidden; background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); box-shadow: var(--shadow); padding: 14px 16px; }
       .card h2 { margin: 0 0 10px; font-size: 11.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); display: flex; align-items: center; gap: 8px; }
       .card .hint { margin: 0 0 10px; color: var(--muted); font-size: 12.5px; }
       .muted, .empty { color: var(--muted); }
@@ -82,22 +82,22 @@
 
       /* Routing legend */
       .legend { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
-      .legend li { display: grid; grid-template-columns: 10px 1fr; gap: 10px; align-items: start; padding: 8px 10px; border-radius: var(--r-sm); border: 1px solid var(--line); background: var(--panel-2); }
-      .legend .dot { width: 10px; height: 10px; border-radius: 50%; margin-top: 5px; }
-      .legend b { display: block; font-size: 13px; }
+      .legend li { display: grid; grid-template-columns: 10px 1fr; gap: 10px; align-items: center; padding: 7px 10px; border-radius: var(--r-sm); border: 1px solid var(--line); background: var(--panel-2); }
+      .legend .dot { width: 10px; height: 10px; border-radius: 50%; }
+      .legend b { display: block; font-size: 13px; line-height: 1.2; }
       .legend span { display: block; font-size: 12px; color: var(--muted); }
-      .legend code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; color: var(--ink-2); }
+      .legend code { display: block; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; color: var(--ink-2); }
       .legend li.routine { border-color: var(--routine-line); background: var(--routine-bg); }
       .legend li.logistics { border-color: var(--logistics-line); background: var(--logistics-bg); }
       .legend li.urgent { border-color: var(--urgent-line); background: var(--urgent-bg); }
       .legend .dot.routine { background: var(--routine); } .legend .dot.logistics { background: var(--logistics); } .legend .dot.urgent { background: var(--urgent); }
 
       /* Stats */
-      dl { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0; }
-      dl > div { padding: 9px 11px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--panel-2); }
-      dl > div:nth-child(2) { grid-column: 1 / -1; }
+      dl { display: grid; grid-template-columns: 1fr; gap: 6px; margin: 0; }
+      dl > div { min-width: 0; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 7px 10px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--panel-2); }
+      dl > div:nth-child(2) { flex-direction: column; align-items: flex-start; gap: 2px; }
       dt { font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
-      dd { margin: 2px 0 0; font-size: 16px; font-weight: 650; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+      dd { margin: 0; font-size: 15px; font-weight: 650; white-space: nowrap; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
       #stat-calls-by-tier { font-size: 13px; font-weight: 500; }
       #stat-savings { color: var(--routine); }
       #stats-notes { margin: 8px 0 0; font-size: 11.5px; }
@@ -107,19 +107,19 @@
       .chat-head { display: flex; align-items: center; gap: 10px; padding: 12px 18px; border-bottom: 1px solid var(--line); }
       .chat-head h2 { margin: 0; font-size: 14px; font-weight: 700; }
       .chat-head .sub { color: var(--muted); font-size: 12.5px; }
-      #conversation { flex: 1; min-height: 0; overflow-y: auto; padding: 18px 18px 10px; display: flex; flex-direction: column; gap: 14px; background: linear-gradient(180deg, #fbfcfd, #f6f8fa); }
+      #conversation { flex: 1; min-height: 0; overflow-y: auto; padding: 20px 20px 12px; display: flex; flex-direction: column; gap: 18px; background: linear-gradient(180deg, #fbfcfd, #f6f8fa); }
       #conversation .empty { margin: auto; text-align: center; max-width: 36ch; }
-      .message { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 10px; max-width: 82%; }
-      .message.user { align-self: flex-end; grid-template-columns: minmax(0, 1fr) 30px; }
-      .avatar { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-size: 12px; font-weight: 700; color: #fff; background: #7b8794; align-self: end; }
+      .message { display: grid; grid-template-columns: 36px minmax(0, 1fr); gap: 12px; max-width: 88%; }
+      .message.user { align-self: flex-end; grid-template-columns: minmax(0, 1fr) 36px; }
+      .avatar { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; font-size: 14px; font-weight: 700; color: #fff; background: #7b8794; align-self: end; }
       .message.user .avatar { order: 2; background: var(--brand-2); }
       .avatar.assistant { background: linear-gradient(135deg, #5aa8ff, #2f7cf6); }
       .avatar.a { background: #7c3aed; } .avatar.p { background: #0f766e; } .avatar.y { background: var(--brand-2); }
       .bubble { min-width: 0; }
-      .message .who { margin: 0 0 3px; font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+      .message .who { margin: 0 0 4px; font-size: 11.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
       .message.user .who { text-align: right; }
-      .message .text { margin: 0; padding: 10px 14px; border-radius: 16px; white-space: pre-wrap; line-height: 1.5; background: #fff; border: 1px solid var(--line); border-bottom-left-radius: 4px; }
-      .message.user .text { background: var(--brand-2); color: #fff; border-color: var(--brand-2); border-bottom-left-radius: 16px; border-bottom-right-radius: 4px; }
+      .message .text { margin: 0; padding: 14px 18px; border-radius: 20px; white-space: pre-wrap; font-size: 16.5px; line-height: 1.55; background: #fff; border: 1px solid var(--line); border-bottom-left-radius: 6px; }
+      .message.user .text { background: var(--brand-2); color: #fff; border-color: var(--brand-2); border-bottom-left-radius: 20px; border-bottom-right-radius: 6px; }
       .message.assistant[data-message-class="urgent"] .text { border-color: var(--urgent-line); }
       .route-badge {
         display: inline-flex; align-items: center; gap: 6px; margin: 0 0 6px; padding: 3px 10px 3px 8px;
@@ -130,7 +130,7 @@
       .route-logistics { background: var(--logistics-bg); border-color: var(--logistics-line); color: #0b3f7a; }
       .route-urgent { background: var(--urgent-bg); border-color: var(--urgent-line); color: #7f1d1d; }
       .route-dot-routine { background: var(--routine); } .route-dot-logistics { background: var(--logistics); } .route-dot-urgent { background: var(--urgent); }
-      .escalation { margin: 8px 0 0; padding: 9px 12px; background: var(--urgent-bg); border: 1px solid var(--urgent-line); border-left: 4px solid var(--urgent); border-radius: 8px; color: #7f1d1d; font-size: 13.5px; }
+      .escalation { margin: 10px 0 0; padding: 11px 14px; background: var(--urgent-bg); border: 1px solid var(--urgent-line); border-left: 4px solid var(--urgent); border-radius: 10px; color: #7f1d1d; font-size: 14.5px; }
       p.escalation[data-role="error"] { align-self: stretch; }
       .tool-note { margin: 6px 0 0; font-size: 12px; color: var(--muted); }
 
@@ -230,31 +230,30 @@
     <main>
       <aside class="rail left">
         <section class="card" aria-labelledby="routing-heading">
-          <h2 id="routing-heading">How messages route</h2>
+          <h2 id="routing-heading">Routes</h2>
           <ul class="legend">
-            <li class="routine"><span class="dot routine"></span><div><b>Routine</b><span>Mood check-ins, chit-chat → cheapest model</span><code id="legend-routine">…</code></div></li>
-            <li class="logistics"><span class="dot logistics"></span><div><b>Logistics</b><span>Appointments, sibling tasks → mid tier + tools</span><code id="legend-logistics">…</code></div></li>
-            <li class="urgent"><span class="dot urgent"></span><div><b>Urgent-health</b><span>Falls, chest pain, confusion, missed dose → strongest model, bypasses the router</span><code id="legend-urgent">…</code></div></li>
+            <li class="routine"><span class="dot routine"></span><div><b>Routine</b><code id="legend-routine">…</code></div></li>
+            <li class="logistics"><span class="dot logistics"></span><div><b>Logistics</b><code id="legend-logistics">…</code></div></li>
+            <li class="urgent"><span class="dot urgent"></span><div><b>Urgent</b><code id="legend-urgent">…</code></div></li>
           </ul>
-          <p id="mode-note" class="hint" style="margin: 10px 0 0">Routine and logistics go through the inference router, which picks the serving model.</p>
+          <p id="mode-note" class="hint" style="margin: 8px 0 0">Urgent skips the router.</p>
         </section>
 
         <section id="stats-panel" class="card" aria-labelledby="stats-heading" data-source="GET /stats" data-cost-label="estimated" data-total-calls="0">
-          <h2 id="stats-heading">Stats (estimated cost)</h2>
+          <h2 id="stats-heading">Stats (estimated)</h2>
           <dl>
-            <div><dt>Inference calls</dt><dd id="stat-total-calls" data-value="0">0</dd></div>
-            <div><dt>Calls by tier</dt><dd id="stat-calls-by-tier" data-value="{}">no calls yet</dd></div>
-            <div><dt>Avg latency</dt><dd id="stat-avg-latency" data-value="">—</dd></div>
+            <div><dt>Calls</dt><dd id="stat-total-calls" data-value="0">0</dd></div>
+            <div><dt>By tier</dt><dd id="stat-calls-by-tier" data-value="{}">none yet</dd></div>
+            <div><dt>Latency</dt><dd id="stat-avg-latency" data-value="">—</dd></div>
             <div><dt>Spend</dt><dd id="stat-spend" data-value="0">$0.00</dd></div>
-            <div><dt>Saved vs large model</dt><dd id="stat-savings" data-value="0">$0.00</dd></div>
+            <div><dt>Saved</dt><dd id="stat-savings" data-value="0">$0.00</dd></div>
           </dl>
           <p id="stats-notes" class="muted"></p>
         </section>
 
         <section class="card" aria-labelledby="replay-heading">
-          <h2 id="replay-heading">Demo replay</h2>
-          <p class="hint">Five scripted messages: one routine, two logistics, two urgent.</p>
-          <button id="replay-control" type="button" style="width: 100%">Replay the five-message demo</button>
+          <h2 id="replay-heading">Demo</h2>
+          <button id="replay-control" type="button" style="width: 100%">Replay 5 messages</button>
           <p id="replay-status" role="status" data-messages="0" data-routine="0" data-logistics="0" data-urgent="0" data-replay-count="0">Replay not started.</p>
         </section>
       </aside>
@@ -296,7 +295,7 @@
       <aside class="rail">
         <section id="alerts-panel" class="card" aria-labelledby="alerts-heading" data-source="GET /alerts" data-open-count="0">
           <h2 id="alerts-heading">Urgent alerts</h2>
-          <p class="hint">Every urgent-health message lands here for the siblings, with the escalation note, until someone acknowledges it.</p>
+          <p class="hint">Stays here until a sibling acknowledges it.</p>
           <p id="alert-delivery" class="muted" data-enabled="false">Email delivery: checking...</p>
           <ul id="alerts" data-alert-count="0">
             <li class="empty" id="alerts-empty">No urgent alerts.</li>
@@ -305,7 +304,7 @@
 
         <section id="digest-panel" class="card" aria-labelledby="digest-heading" data-source="GET /digest">
           <h2 id="digest-heading">Daily digest</h2>
-          <p class="hint">Routine route, small model; the text comes straight from the store.</p>
+
           <div class="button-row">
             <button id="digest-control" type="button">Ask for today's digest</button>
             <button id="digest-email" type="button" disabled>Email digest to siblings</button>
@@ -612,7 +611,7 @@
         function tierText(counts) {
           var keys = Object.keys(counts || {});
           if (!keys.length) {
-            return 'no calls yet';
+            return 'none yet';
           }
           return keys
             .sort()
@@ -629,8 +628,8 @@
             'stat-avg-latency',
             stats.average_latency_ms,
             stats.average_latency_ms === null
-              ? 'no calls yet'
-              : stats.average_latency_ms.toFixed(1) + ' ms'
+              ? '—'
+              : (stats.average_latency_ms / 1000).toFixed(1) + ' s'
           );
           setStat('stat-spend', stats.estimated_spend_usd, money(stats.estimated_spend_usd));
           setStat('stat-savings', stats.estimated_savings_usd, money(stats.estimated_savings_usd));
