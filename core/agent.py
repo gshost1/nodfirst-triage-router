@@ -36,7 +36,7 @@ SYSTEM_PROMPT = (
     "report the email status from the tool result, and if it says disabled "
     "or failed, say the email did not go out. "
     "Call get_parent_summary or summarize_day only when the user asks for a "
-    "summary, update, or digest, or asks a question about recorded medications, "
+    "summary, update, or digest, asks how Mom's day is going, or asks a question about recorded medications, "
     "appointments, or sibling tasks (for example who is driving Mom); never for an "
     "urgent message, a check-in, or a request to record something. Answer such "
     "questions directly from the tool result in one or two sentences. "

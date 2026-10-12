@@ -18,7 +18,7 @@ MEDICATIONS: tuple[tuple[str, str, bool], ...] = (
     ("metformin", "yesterday 6:00 pm", True),
     ("lisinopril", "yesterday 8:00 am", True),
     ("vitamin D", "today 9:00 am", True),
-    ("metformin", "today 8:00 am", False),
+    ("metformin", "today 8:00 am (refused, stomach upset)", False),
     ("lisinopril", "today 8:00 am", True),
 )
 
@@ -47,10 +47,22 @@ URGENT_REPLY = (
     "right away about the dizziness; please do not wait for a reply from me."
 )
 
-# (sender, role, content, class)
+# (sender, role, content, class): Mom's day so far, as the siblings reported it.
 THREAD: tuple[tuple[str, str, str, str], ...] = (
-    ("Anna", "user", "Mom had her metformin and lisinopril at 8 this morning, both taken.", "routine"),
-    ("assistant", "assistant", "Recorded: metformin and lisinopril taken at 8 am. Thanks, Anna.", "routine"),
+    ("Anna", "user", "Morning check: Mom slept well, had oatmeal and tea at 7:30.", "routine"),
+    ("assistant", "assistant", "Good start to the day. Noted the breakfast, nothing to record.", "routine"),
+    ("Anna", "user", "She took her lisinopril at 8 but refused the metformin, said her stomach was off.", "routine"),
+    ("assistant", "assistant",
+     "Recorded: lisinopril taken at 8 am, metformin at 8 am marked missed. Worth a gentle retry with lunch.",
+     "routine"),
+    ("Pavel", "user", "Mom felt dizzy standing up this morning and sat back down.", "urgent"),
+    ("assistant", "assistant", URGENT_REPLY, "urgent"),
+    ("Pavel", "user", "Called Dr. Reyes, nurse says watch her today and mention it Thursday.", "routine"),
+    ("assistant", "assistant",
+     "Noted: the nurse advised watching Mom today and raising the dizziness at Thursday's visit.",
+     "routine"),
+    ("Anna", "user", "Vitamin D taken at 9. She did her balance exercises with the neighbor, Rita, for 15 minutes.", "routine"),
+    ("assistant", "assistant", "Recorded vitamin D at 9 am. Nice that Rita came by for the exercises.", "routine"),
     ("Pavel", "user", "Book Mom's cardiology follow-up for Thursday, we still need a driver.", "logistics"),
     ("assistant", "assistant",
      "Booked the cardiology follow-up for Thursday 10:30 am. Driving Mom there is an open task.",
@@ -59,14 +71,8 @@ THREAD: tuple[tuple[str, str, str, str], ...] = (
     ("assistant", "assistant",
      "Added the pharmacy refill delivery for Friday afternoon. Confirming it with the pharmacy is an open task.",
      "logistics"),
-    ("Pavel", "user", "Mom felt dizzy standing up this morning and sat back down.", "urgent"),
-    ("assistant", "assistant", URGENT_REPLY, "urgent"),
-    ("Pavel", "user", "Called Dr. Reyes, nurse says watch her today and mention it Thursday.", "routine"),
-    ("assistant", "assistant",
-     "Noted: the nurse advised watching Mom today and raising the dizziness at Thursday's visit.",
-     "routine"),
-    ("Anna", "user", "Mom seemed cheerful on the phone tonight, she finished her puzzle.", "routine"),
-    ("assistant", "assistant", "Lovely to hear. Nothing to record, just a good evening for Mom.", "routine"),
+    ("Anna", "user", "Lunch was soup and bread, she ate most of it and took a nap after. Mood is cheerful.", "routine"),
+    ("assistant", "assistant", "Lovely. Lunch, nap and a cheerful mood noted; the metformin is still the one to retry.", "routine"),
 )
 
 ALERT = (
@@ -103,13 +109,13 @@ def seed_demo(store: CareStore) -> dict[str, Any]:
     for sibling, task in SIBLING_TASKS:
         store.assign_sibling_task(sibling, task)
     # Spread the thread over the last day so the digest window picks it up.
-    hours = 20.0
+    hours = 9.0
     for sender, role, content, message_class in THREAD:
         row = store.add_message(sender, role, content, message_class)
         _backdate("messages", store, row["id"], _stamp(hours))
-        hours -= 1.5
+        hours -= 0.55
     alert = store.add_alert(*ALERT)
-    _backdate("alerts", store, alert["id"], _stamp(12.0))
+    _backdate("alerts", store, alert["id"], _stamp(7.0))
     # Left open on purpose so the red card and "Acknowledge" are part of the demo.
     store.record_alert_email(alert["id"], "skipped", "seeded demo data, no email sent", [])
     return {
