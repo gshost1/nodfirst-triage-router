@@ -1036,14 +1036,40 @@
           recognizer.lang = 'en-US';
           recognizer.interimResults = true;
           recognizer.maxAlternatives = 1;
+          // Continuous: the browser would otherwise stop at the first short
+          // pause and send half a sentence. We stop it ourselves after
+          // VOICE_PAUSE_MS of silence following the last words heard.
+          recognizer.continuous = true;
+          var VOICE_PAUSE_MS = 2000;
+          var VOICE_MAX_MS = 20000;
+          var pauseTimer = null;
+          var maxTimer = null;
+          function clearListenTimers() {
+            clearTimeout(pauseTimer); pauseTimer = null;
+            clearTimeout(maxTimer); maxTimer = null;
+          }
+          function finishListening() {
+            clearListenTimers();
+            try { recognizer.stop(); } catch (error) { /* already stopped */ }
+          }
+          recognizer.addEventListener('start', function () {
+            clearListenTimers();
+            maxTimer = setTimeout(finishListening, VOICE_MAX_MS);
+          });
           recognizer.addEventListener('result', function (event) {
             var transcript = '';
-            for (var i = event.resultIndex; i < event.results.length; i += 1) {
-              transcript += event.results[i][0].transcript;
+            for (var i = 0; i < event.results.length; i += 1) {
+              transcript += event.results[i][0].transcript + ' ';
             }
-            composerInput.value = transcript.trim();
+            composerInput.value = transcript.replace(/\s+/g, ' ').trim();
+            if (voiceMode) {
+              setVoiceState('listening', 'Hearing “' + composerInput.value + '” … pause 2 s to send.');
+            }
+            clearTimeout(pauseTimer);
+            pauseTimer = setTimeout(finishListening, VOICE_PAUSE_MS);
           });
           recognizer.addEventListener('end', function () {
+            clearListenTimers();
             micControl.dataset.listening = 'false';
             micControl.setAttribute('aria-pressed', 'false');
             micControl.textContent = '🎤';
@@ -1127,7 +1153,7 @@
           micControl.dataset.listening = 'true';
           micControl.setAttribute('aria-pressed', 'true');
           micControl.textContent = '⏹';
-          setVoiceState('listening', 'Listening… say something about Mom, then pause.');
+          setVoiceState('listening', 'Listening… say something about Mom, then pause for 2 seconds.');
           try {
             recognizer.start();
           } catch (error) {
