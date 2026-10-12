@@ -1,4 +1,4 @@
-"""The four approved tool schemas and strict argument parsing."""
+"""The five approved tool schemas and strict argument parsing."""
 
 from __future__ import annotations
 
@@ -15,12 +15,17 @@ TOOL_PARAMETERS: dict[str, dict[str, str]] = {
     "add_appointment": {"title": "string", "datetime": "string"},
     "assign_sibling_task": {"sibling": "string", "task": "string"},
     "get_parent_summary": {},
+    "summarize_day": {},
 }
 TOOL_DESCRIPTIONS = {
     "log_med": "Record a medication as taken or missed, at the requested time.",
     "add_appointment": "Save an appointment with the requested title and datetime.",
     "assign_sibling_task": "Record a sibling's requested caregiving task.",
     "get_parent_summary": "Read Mom's identity and recorded caregiving data.",
+    "summarize_day": (
+        "Build the daily digest for the siblings: last 24 hours of thread "
+        "activity, urgent alerts, and everything recorded for Mom."
+    ),
 }
 TOOL_SCHEMAS = [
     {"type": "function", "function": {
@@ -120,6 +125,7 @@ def execute_tool(store: CareStore, request: ToolRequest) -> ToolAction:
         "add_appointment": store.add_appointment,
         "assign_sibling_task": store.assign_sibling_task,
         "get_parent_summary": store.get_parent_summary,
+        "summarize_day": store.daily_digest,
     }
     result = handlers[request.name](**request.arguments)
     return ToolAction(request.name, request.arguments, result)

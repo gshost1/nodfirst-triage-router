@@ -162,6 +162,16 @@ def create_app(
         """The shared sibling thread and roster, so a reload keeps the history."""
         return get_service().thread()
 
+    @api.get("/digest")
+    def digest() -> dict[str, Any]:
+        """The store-grounded daily digest; no model call, no cost."""
+        return get_service().digest()
+
+    @api.post("/digest/send")
+    def send_digest() -> dict[str, Any]:
+        """Email the digest to ALERT_EMAIL_TO through Botmail, if configured."""
+        return get_service().email_digest()
+
     @api.get("/alerts")
     def alerts() -> dict[str, Any]:
         """Urgent alerts recorded for the sibling group, newest first."""

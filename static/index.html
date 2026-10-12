@@ -163,6 +163,17 @@
           </p>
         </section>
 
+        <section id="digest-panel" aria-labelledby="digest-heading" data-source="GET /digest">
+          <h2 id="digest-heading">Daily digest</h2>
+          <p class="muted">
+            Asks the assistant for today's digest. The request is routine, so it
+            goes to the small model; the text itself comes straight from the store.
+          </p>
+          <button id="digest-control" type="button">Ask for today's digest</button>
+          <button id="digest-email" type="button" disabled>Email digest to siblings</button>
+          <p id="digest-status" role="status" class="muted" data-email-status="">Not sent yet.</p>
+        </section>
+
         <section id="alerts-panel" aria-labelledby="alerts-heading" data-source="GET /alerts" data-open-count="0">
           <h2 id="alerts-heading">Urgent alerts for the siblings</h2>
           <p class="muted">
@@ -269,6 +280,9 @@
         var alertList = document.getElementById('alerts');
         var alertsEmpty = document.getElementById('alerts-empty');
         var alertDelivery = document.getElementById('alert-delivery');
+        var digestControl = document.getElementById('digest-control');
+        var digestEmail = document.getElementById('digest-email');
+        var digestStatus = document.getElementById('digest-status');
 
         var DEMO_MESSAGES = JSON.parse(
           document.getElementById('demo-script').textContent
@@ -637,6 +651,7 @@
         }
 
         function renderDelivery(delivery) {
+          digestEmail.disabled = !(delivery && delivery.enabled);
           alertDelivery.dataset.enabled = String(Boolean(delivery && delivery.enabled));
           if (delivery && delivery.enabled) {
             alertDelivery.textContent =
@@ -785,6 +800,35 @@
 
         replayControl.addEventListener('click', function () {
           replayDemo();
+        });
+
+        digestControl.addEventListener('click', function () {
+          sendMessage("Send today's digest to the siblings");
+        });
+
+        digestEmail.addEventListener('click', function () {
+          digestEmail.dataset.busy = 'true';
+          fetch('/digest/send', { method: 'POST' })
+            .then(function (response) {
+              if (!response.ok) {
+                throw new Error('POST /digest/send returned ' + response.status);
+              }
+              return response.json();
+            })
+            .then(function (body) {
+              var email = body.email || {};
+              digestStatus.dataset.emailStatus = email.status || '';
+              digestStatus.textContent = email.status === 'sent'
+                ? 'Digest emailed to ' + email.recipients.join(', ') + ' via Botmail.'
+                : 'Digest not emailed: ' + (email.detail || 'unknown') + '.';
+            })
+            .catch(function (error) {
+              digestStatus.dataset.emailStatus = 'failed';
+              digestStatus.textContent = 'Digest not emailed: ' + error.message;
+            })
+            .finally(function () {
+              delete digestEmail.dataset.busy;
+            });
         });
         // Keyboard activation for both Enter and Space, so the control stays
         // operable without a pointer (clicks are unreliable in this environment).

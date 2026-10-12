@@ -24,12 +24,16 @@ SYSTEM_PROMPT = (
     "call 911 now; otherwise contact a doctor promptly. "
     "Only record values the user requested, and never claim an action succeeded "
     "until its tool result confirms it. Preserve relative dates such as Thursday "
-    "rather than inventing a calendar date. Use only the four supplied tools. "
+    "rather than inventing a calendar date. Use only the five supplied tools. "
     "If native tool calls are unavailable, return a fenced JSON block containing "
     '{"name":"approved_tool_name","arguments":{...}}, or a list of such objects. '
     "If no tool is needed, respond in plain text. Summaries must reflect only "
-    "the data returned by get_parent_summary."
+    "the data returned by get_parent_summary or summarize_day."
 )
+
+
+# Replies for these tools are the store's own text, never a model paraphrase.
+GROUNDED_SUMMARY_TOOLS = frozenset({"get_parent_summary", "summarize_day"})
 
 
 @dataclass(frozen=True)
@@ -134,7 +138,7 @@ class CaregiverAgent:
             text = final.choices[0].message.content or "I've recorded that for you."
             # Store-grounded summaries cannot gain invented entries in a follow-up.
             summaries = [a.result["summary"] for a in actions
-                         if a.name == "get_parent_summary"]
+                         if a.name in GROUNDED_SUMMARY_TOOLS]
             if summaries:
                 text = "\n".join(summaries)
         if urgent:

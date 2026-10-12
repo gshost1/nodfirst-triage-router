@@ -63,7 +63,7 @@ store, and an optional DigitalOcean Inference Router path.
                                   |
                                   v
               +---------------------------------------+
-              | caregiver agent + four tools          |
+              | caregiver agent + five tools          |
               | (SQLite demo store, git-ignored)      |
               +---------------------------------------+
                                   |
@@ -190,6 +190,21 @@ The chat is one thread shared by the siblings, not a per-tab session:
   2026-10-12 with a real send to the owner's own address (HTTP 202).
 
 All of it lives in the same git-ignored SQLite file as the tools' data.
+
+### Daily digest
+
+`summarize_day` is the fifth tool. Its text is built entirely from the store
+(last 24 hours of thread activity by class and sender, urgent alerts and how
+many are unacknowledged, medications taken/missed, appointments, sibling
+tasks); the model never paraphrases it, so nothing in the digest is invented.
+
+- **Ask for today's digest** in the UI sends a routine message, so the request
+  goes to the small model while the content comes from the store.
+- `GET /digest` returns the same digest with no model call at all.
+- **Email digest to siblings** (`POST /digest/send`) mails it to
+  `ALERT_EMAIL_TO` through Botmail when alert email is configured; otherwise
+  it reports why not. No scheduler is included: a cron hitting
+  `POST /digest/send` once a day is the whole "daily" part.
 
 ### Inbound webhook (SMS or email gateway)
 
@@ -361,7 +376,7 @@ appears in this README or in the UI.
 
 ## Not in this MVP
 
-Hermes deployment to a Droplet/App Platform, a daily sibling digest, SMS
+Hermes deployment to a Droplet/App Platform, a scheduler for the digest, SMS
 delivery, a live carrier/gateway account for the inbound webhook, cloud deployment, load
 testing, a labeled accuracy evaluation, and the 20-message routing evaluation.
 The app is prepped for those, not shipping them.

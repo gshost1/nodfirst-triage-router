@@ -232,6 +232,16 @@ class ChatService:
     def alerts(self) -> list[dict[str, Any]]:
         return self.store.alerts()
 
+    def digest(self) -> dict[str, Any]:
+        """The store-grounded daily digest, with no model call."""
+        return self.store.daily_digest()
+
+    def email_digest(self) -> dict[str, Any]:
+        """Email the digest to the alert recipients through the notifier."""
+        digest = self.store.daily_digest()
+        sent = self.notifier.send_digest(digest)
+        return {"digest": digest, "email": sent.as_dict()}
+
     def alert_delivery(self) -> dict[str, Any]:
         """How urgent alerts leave the app, for the UI panel."""
         if isinstance(self.notifier, BotmailNotifier):

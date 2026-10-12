@@ -212,7 +212,8 @@ def test_schema_allowlist_and_required_types() -> None:
     functions = {schema["function"]["name"]: schema["function"]
                  for schema in TOOL_SCHEMAS}
     assert set(functions) == {
-        "log_med", "add_appointment", "assign_sibling_task", "get_parent_summary"
+        "log_med", "add_appointment", "assign_sibling_task", "get_parent_summary",
+        "summarize_day",
     }
     assert functions["log_med"]["parameters"]["properties"]["taken"] == {
         "type": "boolean"

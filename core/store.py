@@ -198,6 +198,78 @@ class CareStore:
         finally:
             db.close()
 
+    def daily_digest(self, hours: int = 24) -> dict[str, Any]:
+        """A store-grounded digest: last-`hours` thread activity, open alerts,
+        and everything recorded for Mom. Nothing here comes from a model."""
+        data = self.snapshot()
+        db = self._connect()
+        try:
+            since = f"-{int(hours)} hours"
+            counts = {
+                row["message_class"] or "unclassified": row["n"]
+                for row in db.execute(
+                    "SELECT message_class, COUNT(*) AS n FROM messages "
+                    "WHERE role = 'user' AND created_at >= strftime("
+                    "'%Y-%m-%dT%H:%M:%fZ', 'now', ?) GROUP BY message_class",
+                    (since,),
+                )
+            }
+            senders = [row["sender"] for row in db.execute(
+                "SELECT DISTINCT sender FROM messages WHERE role = 'user' AND "
+                "created_at >= strftime('%Y-%m-%dT%H:%M:%fZ', 'now', ?) "
+                "ORDER BY sender", (since,),
+            )]
+            alerts = [self._alert_row(r) for r in db.execute(
+                "SELECT * FROM alerts WHERE created_at >= strftime("
+                "'%Y-%m-%dT%H:%M:%fZ', 'now', ?) ORDER BY id", (since,),
+            )]
+        finally:
+            db.close()
+        open_alerts = [a for a in alerts if not a["acknowledged"]]
+        parent = data["parent"]
+        heading = (
+            f"Daily digest for {parent['nickname']} ({parent['name']}, "
+            f"{parent['age']}), last {hours} hours."
+        )
+        lines = [heading]
+        total = sum(counts.values())
+        if total:
+            mix = ", ".join(f"{counts[k]} {k}" for k in sorted(counts))
+            lines.append(f"Messages: {total} ({mix}) from {', '.join(senders)}.")
+        else:
+            lines.append("Messages: none.")
+        if alerts:
+            lines.append(
+                f"Urgent alerts: {len(alerts)}, {len(open_alerts)} still "
+                "unacknowledged" + (": " + "; ".join(
+                    f"{a['sender']}: {a['message'].rstrip('.')}" for a in open_alerts
+                ) if open_alerts else "") + "."
+            )
+        else:
+            lines.append("Urgent alerts: none.")
+        missed = [f"{r['med']} at {r['time']}" for r in data["medications"]
+                  if not r["taken"]]
+        taken = sum(1 for r in data["medications"] if r["taken"])
+        lines.append(
+            f"Medications recorded: {taken} taken, {len(missed)} missed"
+            + (" (" + "; ".join(missed) + ")" if missed else "") + "."
+        )
+        appointments = [f"{r['title']}: {r['datetime']}" for r in data["appointments"]]
+        lines.append("Appointments: " + ("; ".join(appointments) if appointments
+                                         else "none recorded") + ".")
+        tasks = [f"{r['sibling']}: {r['task']}" for r in data["sibling_tasks"]]
+        lines.append("Sibling tasks: " + ("; ".join(tasks) if tasks
+                                          else "none recorded") + ".")
+        return {
+            "summary": " ".join(lines),
+            "hours": hours,
+            "message_counts": counts,
+            "senders": senders,
+            "alerts_total": len(alerts),
+            "alerts_open": len(open_alerts),
+            **data,
+        }
+
     def get_parent_summary(self) -> dict[str, Any]:
         data = self.snapshot()
         parent = data["parent"]

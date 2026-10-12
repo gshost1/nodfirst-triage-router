@@ -52,6 +52,9 @@ class NullNotifier:
     def send_alert(self, alert: dict[str, Any]) -> Notification:
         return Notification(STATUS_DISABLED, [], self.reason)
 
+    def send_digest(self, digest: dict[str, Any]) -> Notification:
+        return Notification(STATUS_DISABLED, [], self.reason)
+
 
 class BotmailNotifier:
     """Email each urgent alert to the sibling group through Botmail."""
@@ -74,17 +77,35 @@ class BotmailNotifier:
         self.app_url = app_url
 
     def send_alert(self, alert: dict[str, Any]) -> Notification:
+        return self._send(
+            subject=f"Urgent about Mom from {alert['sender']}",
+            text=alert_email_text(alert, self.app_url),
+            idempotency_key=f"nodfirst-alert-{alert['id']}",
+        )
+
+    def send_digest(self, digest: dict[str, Any]) -> Notification:
+        return self._send(
+            subject="Daily digest about Mom",
+            text=digest["summary"] + "\n\nNot medical advice. "
+            f"Open the shared thread: {self.app_url}\n",
+            idempotency_key=None,
+        )
+
+    def _send(
+        self, *, subject: str, text: str, idempotency_key: str | None
+    ) -> Notification:
         payload = {
             "to": ", ".join(self.recipients) if len(self.recipients) > 1
             else self.recipients[0],
-            "subject": f"Urgent about Mom from {alert['sender']}",
-            "text": alert_email_text(alert, self.app_url),
+            "subject": subject,
+            "text": text,
         }
         headers = {
             "Authorization": f"Bearer {self._api_key}",
             "Content-Type": "application/json",
-            "Idempotency-Key": f"nodfirst-alert-{alert['id']}",
         }
+        if idempotency_key:
+            headers["Idempotency-Key"] = idempotency_key
         try:
             body = self.transport(
                 f"{self.base_url}/send", headers, json.dumps(payload).encode()
