@@ -20,6 +20,7 @@ from pydantic import BaseModel, Field
 from core.chat import ChatService
 from core.llm import create_llm_client
 from core.metrics_store import MetricsStore
+from core.notify import notifier_from_env
 from core.store import CareStore
 from router.config import RouterConfig
 
@@ -64,6 +65,7 @@ def build_service() -> ChatService:
         config=RouterConfig.from_env(),
         store=CareStore(db_path),
         metrics=MetricsStore(db_path),
+        notifier=notifier_from_env(),
     )
 
 
@@ -107,7 +109,8 @@ def create_app(
     @api.get("/alerts")
     def alerts() -> dict[str, Any]:
         """Urgent alerts recorded for the sibling group, newest first."""
-        return {"alerts": get_service().alerts()}
+        service = get_service()
+        return {"alerts": service.alerts(), "delivery": service.alert_delivery()}
 
     @api.post("/alerts/{alert_id}/ack")
     def acknowledge_alert(alert_id: int) -> dict[str, Any]:

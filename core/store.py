@@ -42,6 +42,9 @@ class CareStore:
                     message TEXT NOT NULL,
                     note TEXT NOT NULL,
                     acknowledged INTEGER NOT NULL DEFAULT 0 CHECK (acknowledged IN (0, 1)),
+                    email_status TEXT,
+                    email_detail TEXT,
+                    email_recipients TEXT,
                     created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
                 );
                 INSERT OR IGNORE INTO parent VALUES (1, 'Ludmila', 'Mom', 81);
@@ -125,17 +128,37 @@ class CareStore:
             (sender, message, note),
         )
         return {"id": identifier, "sender": sender, "message": message,
-                "note": note, "acknowledged": False}
+                "note": note, "acknowledged": False, "email_status": None,
+                "email_detail": None, "email_recipients": []}
+
+    def record_alert_email(
+        self, alert_id: int, status: str, detail: str, recipients: list[str]
+    ) -> None:
+        db = self._connect()
+        try:
+            with db:
+                db.execute(
+                    "UPDATE alerts SET email_status = ?, email_detail = ?, "
+                    "email_recipients = ? WHERE id = ?",
+                    (status, detail, ", ".join(recipients), alert_id),
+                )
+        finally:
+            db.close()
+
+    @staticmethod
+    def _alert_row(row: Any) -> dict[str, Any]:
+        result = dict(row)
+        result["acknowledged"] = bool(result["acknowledged"])
+        raw = result.get("email_recipients") or ""
+        result["email_recipients"] = [r for r in raw.split(", ") if r]
+        return result
 
     def alerts(self) -> list[dict[str, Any]]:
         db = self._connect()
         try:
-            rows = [dict(r) for r in db.execute(
+            return [self._alert_row(r) for r in db.execute(
                 "SELECT * FROM alerts ORDER BY id DESC"
             )]
-            for row in rows:
-                row["acknowledged"] = bool(row["acknowledged"])
-            return rows
         finally:
             db.close()
 
@@ -149,9 +172,7 @@ class CareStore:
                 if cursor.rowcount == 0:
                     return None
             row = db.execute("SELECT * FROM alerts WHERE id = ?", (alert_id,)).fetchone()
-            result = dict(row)
-            result["acknowledged"] = True
-            return result
+            return self._alert_row(row)
         finally:
             db.close()
 

@@ -33,6 +33,7 @@ from core.metrics import (
 )
 from core.metrics_store import MetricsStore
 from core.mock_agent import mock_agent_completion
+from core.notify import BotmailNotifier, NullNotifier
 from core.pricing import PricingTable
 from core.store import CareStore
 from core.tools import ToolAction
@@ -140,7 +141,9 @@ class ChatService:
         pricing: PricingTable | None = None,
         clock: Callable[[], float] = time.perf_counter,
         mock_completion: Callable[..., Any] | None = None,
+        notifier: BotmailNotifier | NullNotifier | None = None,
     ) -> None:
+        self.notifier = notifier or NullNotifier()
         self.client = client
         self.config = config
         self.store = store
@@ -190,6 +193,15 @@ class ChatService:
             alert = self.store.add_alert(
                 sender, message, decision.escalation_note or ""
             )
+            # Best effort: a failed or disabled email is recorded, never raised.
+            sent = self.notifier.send_alert(alert)
+            self.store.record_alert_email(
+                alert["id"], sent.status, sent.detail, sent.recipients
+            )
+            alert.update(
+                email_status=sent.status, email_detail=sent.detail,
+                email_recipients=list(sent.recipients),
+            )
 
         calls = recorder.calls
         last = calls[-1] if calls else None
@@ -219,6 +231,14 @@ class ChatService:
 
     def alerts(self) -> list[dict[str, Any]]:
         return self.store.alerts()
+
+    def alert_delivery(self) -> dict[str, Any]:
+        """How urgent alerts leave the app, for the UI panel."""
+        if isinstance(self.notifier, BotmailNotifier):
+            return {"enabled": True, "provider": "botmail",
+                    "recipients": list(self.notifier.recipients)}
+        return {"enabled": False, "provider": None,
+                "recipients": [], "reason": self.notifier.reason}
 
     def acknowledge_alert(self, alert_id: int) -> dict[str, Any] | None:
         return self.store.acknowledge_alert(alert_id)

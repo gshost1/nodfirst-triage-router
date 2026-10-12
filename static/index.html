@@ -169,6 +169,7 @@
             Every urgent-health message is recorded here so Anna and Pavel see it,
             even if they were not in the thread. Acknowledge means "I've seen it".
           </p>
+          <p id="alert-delivery" class="muted" data-enabled="false">Email delivery: checking...</p>
           <ul id="alerts" data-alert-count="0">
             <li class="empty" id="alerts-empty">No urgent alerts.</li>
           </ul>
@@ -267,6 +268,7 @@
         var alertsPanel = document.getElementById('alerts-panel');
         var alertList = document.getElementById('alerts');
         var alertsEmpty = document.getElementById('alerts-empty');
+        var alertDelivery = document.getElementById('alert-delivery');
 
         var DEMO_MESSAGES = JSON.parse(
           document.getElementById('demo-script').textContent
@@ -601,6 +603,12 @@
             text.textContent = alert.message;
             entry.appendChild(text);
 
+            var email = document.createElement('p');
+            email.className = 'alert-email';
+            email.dataset.emailStatus = alert.email_status || '';
+            email.textContent = emailText(alert);
+            entry.appendChild(email);
+
             if (!alert.acknowledged) {
               var button = document.createElement('button');
               button.type = 'button';
@@ -617,6 +625,29 @@
           alertsPanel.dataset.openCount = String(open);
         }
 
+        function emailText(alert) {
+          var to = (alert.email_recipients || []).join(', ');
+          if (alert.email_status === 'sent') {
+            return 'Email sent to ' + to + ' via Botmail.';
+          }
+          if (alert.email_status === 'failed') {
+            return 'Email to ' + to + ' failed: ' + alert.email_detail + '. Call them.';
+          }
+          return 'No email sent: ' + (alert.email_detail || 'delivery not configured') + '.';
+        }
+
+        function renderDelivery(delivery) {
+          alertDelivery.dataset.enabled = String(Boolean(delivery && delivery.enabled));
+          if (delivery && delivery.enabled) {
+            alertDelivery.textContent =
+              'Email delivery: on via ' + delivery.provider + ' to ' +
+              delivery.recipients.join(', ') + '.';
+          } else {
+            alertDelivery.textContent =
+              'Email delivery: off (' + ((delivery && delivery.reason) || 'not configured') + ').';
+          }
+        }
+
         function refreshAlerts() {
           return fetch('/alerts', { headers: { Accept: 'application/json' } })
             .then(function (response) {
@@ -626,6 +657,7 @@
               return response.json();
             })
             .then(function (body) {
+              renderDelivery(body.delivery);
               renderAlerts(body.alerts || []);
             });
         }

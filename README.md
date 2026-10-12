@@ -119,6 +119,8 @@ never commit or share it. `.env.example` holds placeholders only.
 | `PORT` | Loopback port for the local app | `8000` |
 | `CARE_DB` | Optional SQLite path override (default `nodfirst.sqlite3`, git-ignored) | unset |
 | `DO_ROUTER_MODEL` | Optional Inference Router name override (default `router:nodfirst`) | unset |
+| `ALERT_EMAIL_TO` | Optional comma-separated recipients for urgent alert email | unset (alerts stay local) |
+| `BOTMAIL_API_KEY` / `BOTMAIL_KEY_FILE` | Botmail key, inline or as a file path. Never printed, logged, or committed | unset |
 
 Model IDs come from the already verified `GET /v1/models` response and live in
 configuration, never hardcoded in runtime routing code. The selection rationale
@@ -173,8 +175,16 @@ The chat is one thread shared by the siblings, not a per-tab session:
 - **Urgent alerts.** Every urgent-health turn also writes an alert
   (`GET /alerts`). The "Urgent alerts for the siblings" panel lists them with
   the escalation note until a sibling clicks Acknowledge
-  (`POST /alerts/{id}/ack`). No outbound notification is sent; a botmail or
-  SMS hook would attach here.
+  (`POST /alerts/{id}/ack`).
+- **Outbound alert email (optional).** Set `ALERT_EMAIL_TO` (comma-separated)
+  and a Botmail key (`BOTMAIL_API_KEY`, or `BOTMAIL_KEY_FILE` pointing at the
+  key file) and every urgent alert is also emailed through
+  [Botmail](https://botmail.pro) (`POST /v1/send`, idempotent per alert).
+  Delivery is best effort: a failure or timeout is recorded on the alert as
+  `email_status=failed` and shown in the panel, and the chat turn still
+  succeeds. The key is never logged or echoed. With nothing configured the
+  panel says "Email delivery: off" and alerts stay local. Verified once on
+  2026-10-12 with a real send to the owner's own address (HTTP 202).
 
 All of it lives in the same git-ignored SQLite file as the tools' data.
 
@@ -320,8 +330,8 @@ appears in this README or in the UI.
 
 ## Not in this MVP
 
-Hermes deployment to a Droplet/App Platform, a daily sibling digest, outbound
-alert delivery (email/SMS), inbound SMS/email webhooks, cloud deployment, load
+Hermes deployment to a Droplet/App Platform, a daily sibling digest, SMS
+delivery, inbound SMS/email webhooks, cloud deployment, load
 testing, a labeled accuracy evaluation, and the 20-message routing evaluation.
 The app is prepped for those, not shipping them.
 

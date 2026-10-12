@@ -6,11 +6,17 @@ SQLite file; no provider request is made.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
+from app import create_app
 from core.agent import CaregiverAgent
+from core.chat import ChatService
+from core.metrics_store import MetricsStore
+from core.notify import BotmailNotifier, NullNotifier, notifier_from_env
 from core.store import CareStore
 from router.config import RouterConfig
 from tests.test_api import (
@@ -193,3 +199,136 @@ def test_ui_has_sender_picker_alerts_panel_and_thread_reload(tmp_path: Path) -> 
         "fetch('/thread'", "fetch('/alerts'", "/ack'",
     ):
         assert required in html, f"the served page is missing {required}"
+
+
+# -- outbound alert email (Botmail) ------------------------------------------
+
+
+def _fake_transport(calls: list[dict[str, object]], *, fail: Exception | None = None):
+    def transport(url: str, headers: dict[str, str], body: bytes) -> dict[str, object]:
+        calls.append({"url": url, "headers": headers, "body": json.loads(body)})
+        if fail is not None:
+            raise fail
+        return {"id": "msg_123", "status": "queued"}
+    return transport
+
+
+def notifying_api(tmp_path: Path, notifier: object) -> TestClient:
+    service = ChatService(
+        client=mock_agent_client(),
+        config=RouterConfig.from_env(MOCK_ENV),
+        store=CareStore(tmp_path / "n.sqlite3"),
+        metrics=MetricsStore(tmp_path / "n.sqlite3"),
+        notifier=notifier,  # type: ignore[arg-type]
+    )
+    return TestClient(create_app(service=service))
+
+
+def test_urgent_alert_is_emailed_through_botmail_without_leaking_the_key(
+    tmp_path: Path, outbound_connections: list[object],
+) -> None:
+    calls: list[dict[str, object]] = []
+    notifier = BotmailNotifier(
+        api_key="bm_secret_test", recipients=["anna@example.com", "pavel@example.com"],
+        transport=_fake_transport(calls),
+    )
+    api = notifying_api(tmp_path, notifier)
+
+    alert = api.post("/chat", json={"message": URGENT_MESSAGE, "sender": "Pavel"}).json()["alert"]
+
+    assert alert["email_status"] == "sent"
+    assert alert["email_recipients"] == ["anna@example.com", "pavel@example.com"]
+    assert len(calls) == 1
+    call = calls[0]
+    assert call["url"] == "https://botmail.pro/v1/send"
+    headers = call["headers"]
+    assert headers["Authorization"] == "Bearer bm_secret_test"
+    assert headers["Idempotency-Key"] == f"nodfirst-alert-{alert['id']}"
+    body = call["body"]
+    assert body["to"] == "anna@example.com, pavel@example.com"
+    assert body["subject"] == "Urgent about Mom from Pavel"
+    assert URGENT_MESSAGE in body["text"]
+    assert "911" in body["text"]
+    assert "bm_secret_test" not in json.dumps(alert)
+    assert outbound_connections == []
+
+    listed = api.get("/alerts").json()
+    assert listed["delivery"] == {
+        "enabled": True, "provider": "botmail",
+        "recipients": ["anna@example.com", "pavel@example.com"],
+    }
+    assert listed["alerts"][0]["email_status"] == "sent"
+
+
+def test_botmail_failure_is_recorded_and_never_breaks_the_chat(tmp_path: Path) -> None:
+    calls: list[dict[str, object]] = []
+    notifier = BotmailNotifier(
+        api_key="bm_secret_test", recipients=["anna@example.com"],
+        transport=_fake_transport(calls, fail=TimeoutError("slow")),
+    )
+    api = notifying_api(tmp_path, notifier)
+
+    response = api.post("/chat", json={"message": URGENT_MESSAGE, "sender": "Anna"})
+
+    assert response.status_code == 200
+    alert = response.json()["alert"]
+    assert alert["email_status"] == "failed"
+    assert alert["email_detail"] == "Botmail request failed: TimeoutError"
+    assert "bm_secret_test" not in response.text
+
+
+def test_botmail_http_error_reports_the_status_code_only(tmp_path: Path) -> None:
+    import urllib.error
+    error = urllib.error.HTTPError(
+        "https://botmail.pro/v1/send", 429, "Too Many", {}, None,  # type: ignore[arg-type]
+    )
+    notifier = BotmailNotifier(
+        api_key="bm_secret_test", recipients=["anna@example.com"],
+        transport=_fake_transport([], fail=error),
+    )
+    sent = notifier.send_alert({"id": 1, "sender": "Anna", "message": "m", "note": "n"})
+    assert sent.status == "failed"
+    assert sent.detail == "Botmail returned HTTP 429"
+
+
+def test_alerts_stay_local_when_email_is_not_configured(tmp_path: Path) -> None:
+    api = mock_api(tmp_path)
+
+    alert = api.post("/chat", json={"message": URGENT_MESSAGE}).json()["alert"]
+
+    assert alert["email_status"] == "disabled"
+    assert alert["email_recipients"] == []
+    delivery = api.get("/alerts").json()["delivery"]
+    assert delivery["enabled"] is False
+    assert "not configured" in delivery["reason"]
+
+
+def test_notifier_from_env_requires_recipients_and_a_key(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path,
+) -> None:
+    for name in ("ALERT_EMAIL_TO", "BOTMAIL_API_KEY", "BOTMAIL_KEY_FILE"):
+        monkeypatch.delenv(name, raising=False)
+    assert isinstance(notifier_from_env(), NullNotifier)
+
+    monkeypatch.setenv("ALERT_EMAIL_TO", "anna@example.com, pavel@example.com")
+    missing = notifier_from_env()
+    assert isinstance(missing, NullNotifier)
+    assert "no Botmail key" in missing.reason
+
+    key_file = tmp_path / "key"
+    key_file.write_text("bm_from_file\n")
+    monkeypatch.setenv("BOTMAIL_KEY_FILE", str(key_file))
+    monkeypatch.setenv("PORT", "8765")
+    built = notifier_from_env()
+    assert isinstance(built, BotmailNotifier)
+    assert built.recipients == ["anna@example.com", "pavel@example.com"]
+    assert built.app_url == "http://127.0.0.1:8765"
+
+    monkeypatch.setenv("BOTMAIL_API_KEY", "bm_from_env")
+    assert isinstance(notifier_from_env(), BotmailNotifier)
+
+
+def test_ui_shows_email_delivery_state(tmp_path: Path) -> None:
+    html = mock_api(tmp_path).get("/").text
+    assert 'id="alert-delivery"' in html
+    assert "via Botmail" in html
