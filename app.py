@@ -1,4 +1,5 @@
-"""Local FastAPI surface: the static UI, `POST /chat`, and `GET /stats`.
+"""Local FastAPI surface: the static UI, `POST /chat`, `GET /stats`,
+`GET /thread`, and the urgent `/alerts` endpoints.
 
 Bind this application to loopback only. It coordinates the classifier,
 routing, and caregiver agent through `core.chat.ChatService` and never talks to
@@ -48,6 +49,7 @@ class ChatRequest(BaseModel):
     """A single caregiver message from the local UI."""
 
     message: str = Field(min_length=1)
+    sender: str | None = Field(default=None, max_length=40)
 
 
 def build_service() -> ChatService:
@@ -95,7 +97,25 @@ def create_app(
         message = request.message.strip()
         if not message:
             raise HTTPException(status_code=422, detail="message must not be blank")
-        return get_service().handle(message).as_dict()
+        return get_service().handle(message, sender=request.sender).as_dict()
+
+    @api.get("/thread")
+    def thread() -> dict[str, Any]:
+        """The shared sibling thread and roster, so a reload keeps the history."""
+        return get_service().thread()
+
+    @api.get("/alerts")
+    def alerts() -> dict[str, Any]:
+        """Urgent alerts recorded for the sibling group, newest first."""
+        return {"alerts": get_service().alerts()}
+
+    @api.post("/alerts/{alert_id}/ack")
+    def acknowledge_alert(alert_id: int) -> dict[str, Any]:
+        """Mark an alert as seen by a sibling."""
+        alert = get_service().acknowledge_alert(alert_id)
+        if alert is None:
+            raise HTTPException(status_code=404, detail="alert not found")
+        return alert
 
     @api.get("/stats")
     def stats() -> dict[str, Any]:

@@ -80,6 +80,13 @@
       #replay-control { background: #fff; color: #1f4e79; }
       #replay-status { margin: 10px 0 0; font-size: 13px; color: var(--muted); }
       #tool-actions { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+      #sender { padding: 9px 10px; border: 1px solid #94a3b8; border-radius: 6px; font: inherit; }
+      #alerts { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+      .alert { padding: 8px 10px; background: var(--urgent-bg); border-left: 4px solid var(--urgent); border-radius: 4px; }
+      .alert[data-acknowledged="true"] { opacity: 0.6; border-left-color: #94a3b8; background: #f1f5f9; }
+      .alert .alert-meta { margin: 0 0 4px; font-size: 12px; font-weight: 600; color: #7f1d1d; }
+      .alert .alert-text { margin: 0 0 6px; }
+      .alert button { padding: 4px 10px; font-size: 13px; }
       .tool-action { border: 1px solid var(--line); border-left: 4px solid var(--logistics); border-radius: 6px; padding: 8px 10px; font-size: 13px; }
       .tool-name { font-weight: 600; display: block; }
       .tool-args, .tool-result { color: var(--muted); display: block; }
@@ -119,6 +126,10 @@
           <p class="empty" id="conversation-empty">No messages yet.</p>
         </div>
         <form id="composer-form" autocomplete="off">
+          <label for="sender">Writing as</label>
+          <select id="sender" name="sender" aria-label="Which sibling is writing">
+            <option value="You">You</option>
+          </select>
           <label for="composer">Message about Mom</label>
           <input
             id="composer"
@@ -150,6 +161,17 @@
           >
             Replay not started.
           </p>
+        </section>
+
+        <section id="alerts-panel" aria-labelledby="alerts-heading" data-source="GET /alerts" data-open-count="0">
+          <h2 id="alerts-heading">Urgent alerts for the siblings</h2>
+          <p class="muted">
+            Every urgent-health message is recorded here so Anna and Pavel see it,
+            even if they were not in the thread. Acknowledge means "I've seen it".
+          </p>
+          <ul id="alerts" data-alert-count="0">
+            <li class="empty" id="alerts-empty">No urgent alerts.</li>
+          </ul>
         </section>
 
         <section aria-labelledby="tools-heading">
@@ -241,6 +263,10 @@
         var replayStatus = document.getElementById('replay-status');
         var statsPanel = document.getElementById('stats-panel');
         var statsNotes = document.getElementById('stats-notes');
+        var senderSelect = document.getElementById('sender');
+        var alertsPanel = document.getElementById('alerts-panel');
+        var alertList = document.getElementById('alerts');
+        var alertsEmpty = document.getElementById('alerts-empty');
 
         var DEMO_MESSAGES = JSON.parse(
           document.getElementById('demo-script').textContent
@@ -282,14 +308,15 @@
           return { text: 'not reported', source: 'unreported' };
         }
 
-        function appendUserMessage(text) {
+        function appendUserMessage(text, sender) {
           removePlaceholder(conversation, conversationEmpty);
           var item = document.createElement('article');
           item.className = 'message user';
           item.dataset.role = 'user';
+          item.dataset.sender = sender || 'You';
           var who = document.createElement('p');
           who.className = 'who';
-          who.textContent = 'You';
+          who.textContent = sender || 'You';
           var body_ = document.createElement('p');
           body_.className = 'text';
           body_.textContent = text;
@@ -489,6 +516,133 @@
           statsNotes.textContent = (stats.notes || []).join(' ');
         }
 
+        function appendStoredAssistantMessage(entry) {
+          removePlaceholder(conversation, conversationEmpty);
+          var item = document.createElement('article');
+          item.className = 'message assistant';
+          item.dataset.role = 'assistant';
+          item.dataset.messageClass = entry.message_class || '';
+          item.dataset.stored = 'true';
+          var who = document.createElement('p');
+          who.className = 'who';
+          who.textContent = 'Caregiver assistant' +
+            (entry.message_class ? ' · ' + entry.message_class + ' route (earlier)' : '');
+          var text = document.createElement('p');
+          text.className = 'text';
+          text.textContent = entry.content;
+          item.appendChild(who);
+          item.appendChild(text);
+          conversation.appendChild(item);
+          conversation.dataset.replyCount = String(
+            Number(conversation.dataset.replyCount) + 1
+          );
+        }
+
+        function renderThread(thread) {
+          var current = senderSelect.value;
+          while (senderSelect.options.length > 1) {
+            senderSelect.remove(1);
+          }
+          (thread.siblings || []).forEach(function (name) {
+            var option = document.createElement('option');
+            option.value = name;
+            option.textContent = name;
+            senderSelect.appendChild(option);
+          });
+          if (current) {
+            senderSelect.value = current;
+          }
+          (thread.messages || []).forEach(function (entry) {
+            if (entry.role === 'user') {
+              appendUserMessage(entry.content, entry.sender);
+            } else {
+              appendStoredAssistantMessage(entry);
+            }
+          });
+        }
+
+        function loadThread() {
+          return fetch('/thread', { headers: { Accept: 'application/json' } })
+            .then(function (response) {
+              if (!response.ok) {
+                throw new Error('GET /thread returned ' + response.status);
+              }
+              return response.json();
+            })
+            .then(renderThread);
+        }
+
+        function renderAlerts(alerts) {
+          while (alertList.firstChild) {
+            alertList.removeChild(alertList.firstChild);
+          }
+          var open = 0;
+          if (!alerts.length) {
+            alertList.appendChild(alertsEmpty);
+          }
+          alerts.forEach(function (alert) {
+            if (!alert.acknowledged) {
+              open += 1;
+            }
+            var entry = document.createElement('li');
+            entry.className = 'alert';
+            entry.dataset.alertId = String(alert.id);
+            entry.dataset.acknowledged = String(Boolean(alert.acknowledged));
+
+            var meta = document.createElement('p');
+            meta.className = 'alert-meta';
+            meta.textContent = 'From ' + alert.sender + ' · ' +
+              (alert.created_at || '') +
+              (alert.acknowledged ? ' · acknowledged' : ' · needs a sibling');
+            entry.appendChild(meta);
+
+            var text = document.createElement('p');
+            text.className = 'alert-text';
+            text.textContent = alert.message;
+            entry.appendChild(text);
+
+            if (!alert.acknowledged) {
+              var button = document.createElement('button');
+              button.type = 'button';
+              button.className = 'ack-alert';
+              button.textContent = 'Acknowledge as ' + (senderSelect.value || 'You');
+              button.addEventListener('click', function () {
+                acknowledgeAlert(alert.id);
+              });
+              entry.appendChild(button);
+            }
+            alertList.appendChild(entry);
+          });
+          alertList.dataset.alertCount = String(alerts.length);
+          alertsPanel.dataset.openCount = String(open);
+        }
+
+        function refreshAlerts() {
+          return fetch('/alerts', { headers: { Accept: 'application/json' } })
+            .then(function (response) {
+              if (!response.ok) {
+                throw new Error('GET /alerts returned ' + response.status);
+              }
+              return response.json();
+            })
+            .then(function (body) {
+              renderAlerts(body.alerts || []);
+            });
+        }
+
+        function acknowledgeAlert(id) {
+          return fetch('/alerts/' + encodeURIComponent(id) + '/ack', { method: 'POST' })
+            .then(function (response) {
+              if (!response.ok) {
+                throw new Error('POST /alerts/' + id + '/ack returned ' + response.status);
+              }
+              return refreshAlerts();
+            })
+            .catch(function (error) {
+              appendError(error.message);
+            });
+        }
+
         function refreshStats() {
           return fetch('/stats', { headers: { Accept: 'application/json' } })
             .then(function (response) {
@@ -505,13 +659,14 @@
           if (!message) {
             return Promise.resolve(null);
           }
-          appendUserMessage(message);
+          var sender = senderSelect.value || 'You';
+          appendUserMessage(message, sender);
           body.dataset.chatCount = String(Number(body.dataset.chatCount) + 1);
           sendButton.dataset.busy = 'true';
           return fetch('/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message: message })
+            body: JSON.stringify({ message: message, sender: sender })
           })
             .then(function (response) {
               if (!response.ok) {
@@ -522,7 +677,8 @@
             .then(function (turn) {
               appendAssistantMessage(turn);
               // Stats refresh in the already-loaded page: no navigation here.
-              return refreshStats().then(function () {
+              var refresh = turn.alert ? refreshAlerts() : Promise.resolve();
+              return refresh.then(refreshStats).then(function () {
                 return turn;
               });
             })
@@ -613,6 +769,12 @@
         });
 
         // Read the current values from the local API on every page load.
+        loadThread().catch(function (error) {
+          appendError(error.message);
+        });
+        refreshAlerts().catch(function (error) {
+          appendError(error.message);
+        });
         refreshStats().catch(function (error) {
           statsNotes.textContent = 'Stats unavailable: ' + error.message;
         });

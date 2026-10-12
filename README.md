@@ -37,6 +37,7 @@ store, and an optional DigitalOcean Inference Router path.
                                   v
               +---------------------------------------+
               |  FastAPI  POST /chat  (127.0.0.1)     |
+              |  + GET /thread, GET /alerts, /ack     |
               +---------------------------------------+
                                   |
                                   v
@@ -156,6 +157,26 @@ Open <http://127.0.0.1:8000>. The page shows the chat composer, a colored route
 badge per reply, the tool-actions panel, the stats panel, a Replay control, and
 the "not medical advice" disclaimer. The page calls only the local API; it never
 holds a key or contacts a provider.
+
+### Shared sibling thread and urgent alerts
+
+The chat is one thread shared by the siblings, not a per-tab session:
+
+- **Writing as** picks the sender (You, Anna, Pavel). The sender is stored with
+  each message and prefixed into the model's view of the thread, so the agent
+  can tell "Pavel: she took it at 9" from Anna's question before it.
+- **History.** The last 8 stored messages are sent as context on every turn
+  (`HISTORY_TURNS` in `core/chat.py`). The classifier still sees only the bare
+  new message, so routing never depends on who wrote it.
+- **Reload keeps the thread.** `GET /thread` returns the roster and recent
+  messages; the page renders them on load.
+- **Urgent alerts.** Every urgent-health turn also writes an alert
+  (`GET /alerts`). The "Urgent alerts for the siblings" panel lists them with
+  the escalation note until a sibling clicks Acknowledge
+  (`POST /alerts/{id}/ack`). No outbound notification is sent; a botmail or
+  SMS hook would attach here.
+
+All of it lives in the same git-ignored SQLite file as the tools' data.
 
 Routing modes:
 
@@ -299,9 +320,10 @@ appears in this README or in the UI.
 
 ## Not in this MVP
 
-Hermes deployment to a Droplet/App Platform, a daily sibling digest, cloud
-deployment, load testing, a labeled accuracy evaluation, and the 20-message
-routing evaluation. The app is prepped for those, not shipping them.
+Hermes deployment to a Droplet/App Platform, a daily sibling digest, outbound
+alert delivery (email/SMS), inbound SMS/email webhooks, cloud deployment, load
+testing, a labeled accuracy evaluation, and the 20-message routing evaluation.
+The app is prepped for those, not shipping them.
 
 ## Tests and checks
 

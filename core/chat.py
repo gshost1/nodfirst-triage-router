@@ -47,6 +47,8 @@ NOT_MEDICAL_ADVICE = (
     "otherwise contact Mom's doctor."
 )
 AGENT_MAX_COMPLETION_TOKENS = 512
+HISTORY_TURNS = 8  # prior thread messages (user + assistant) sent to the model
+DEFAULT_SENDER = "You"
 
 
 def tier_for_decision(decision: RouteDecision) -> str:
@@ -92,10 +94,14 @@ class ChatTurn:
     model: str | None
     response_model: str | None
     selected_route: str | None
+    sender: str = DEFAULT_SENDER
+    alert: dict[str, Any] | None = None
 
     def as_dict(self) -> dict[str, Any]:
         return {
             "reply": self.reply,
+            "sender": self.sender,
+            "alert": self.alert,
             "message_class": self.decision.message_class.value,
             "urgent": self.decision.is_urgent,
             "mode": self.decision.mode.value,
@@ -150,7 +156,15 @@ class ChatService:
     def is_mock(self) -> bool:
         return self.config.mode is RouterMode.MOCK
 
-    def handle(self, message: str) -> ChatTurn:
+    def handle(self, message: str, *, sender: str | None = None) -> ChatTurn:
+        """Run one turn in the shared sibling thread.
+
+        The last `HISTORY_TURNS` stored messages are sent as context, the new
+        user message and the reply are persisted, and an urgent decision also
+        records an alert for the sibling group.
+        """
+        sender = (sender or "").strip() or DEFAULT_SENDER
+        history = self.store.recent_messages(HISTORY_TURNS)
         recorder = _TurnRecorder(self.metrics, self.pricing, self.clock)
         classifier = TriageClassifier(
             self.client,
@@ -164,7 +178,18 @@ class ChatService:
         classification = classifier.classify(message)
         decision = dispatch_route(self.config, classification)
         agent = CaregiverAgent(self.store, self._completion(recorder, decision))
-        result = agent.run(message, urgent=decision.is_urgent)
+        result = agent.run(
+            message, urgent=decision.is_urgent, sender=sender, history=history
+        )
+
+        message_class = decision.message_class.value
+        self.store.add_message(sender, "user", message, message_class)
+        self.store.add_message("assistant", "assistant", result.reply, message_class)
+        alert = None
+        if decision.is_urgent:
+            alert = self.store.add_alert(
+                sender, message, decision.escalation_note or ""
+            )
 
         calls = recorder.calls
         last = calls[-1] if calls else None
@@ -181,7 +206,22 @@ class ChatService:
             model=last.model if last else decision.model,
             response_model=last.response_model if last else None,
             selected_route=recorder.selected_route,
+            sender=sender,
+            alert=alert,
         )
+
+    def thread(self, limit: int = 50) -> dict[str, Any]:
+        """The shared thread plus the sibling roster, for page load."""
+        return {
+            "siblings": self.store.siblings(),
+            "messages": self.store.recent_messages(limit),
+        }
+
+    def alerts(self) -> list[dict[str, Any]]:
+        return self.store.alerts()
+
+    def acknowledge_alert(self, alert_id: int) -> dict[str, Any] | None:
+        return self.store.acknowledge_alert(alert_id)
 
     def stats(self) -> StatsReport:
         return aggregate_calls(

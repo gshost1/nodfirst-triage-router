@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -51,13 +51,36 @@ class CaregiverAgent:
         self.store = store
         self.complete = complete
 
-    def run(self, message: str, *, urgent: bool = False) -> AgentResult:
-        messages: list[dict[str, Any]] = [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": message},
-        ]
+    def run(
+        self,
+        message: str,
+        *,
+        urgent: bool = False,
+        sender: str | None = None,
+        history: Sequence[dict[str, Any]] = (),
+    ) -> AgentResult:
+        """Run one turn.
+
+        `history` is prior thread messages (dicts with `role`, `content`, and
+        optionally `sender`) in chronological order. User turns are prefixed
+        with the sender's name so the model can tell siblings apart.
+        """
+        system = SYSTEM_PROMPT
+        if sender:
+            system += f" The person writing now is {sender}."
         if urgent:
-            messages[0]["content"] += "\n" + URGENT_ESCALATION_NOTE
+            system += "\n" + URGENT_ESCALATION_NOTE
+        messages: list[dict[str, Any]] = [{"role": "system", "content": system}]
+        for prior in history:
+            role = prior["role"]
+            content = str(prior.get("content", ""))
+            if role == "user" and prior.get("sender"):
+                content = f"{prior['sender']}: {content}"
+            messages.append({"role": role, "content": content})
+        messages.append({
+            "role": "user",
+            "content": f"{sender}: {message}" if sender else message,
+        })
         initial = self.complete(
             messages=messages, tools=TOOL_SCHEMAS, tool_choice="auto",
             max_completion_tokens=512,
