@@ -918,8 +918,13 @@
               return response.json();
             })
             .then(function (turn) {
-              removePending();
-              appendAssistantMessage(turn);
+              if (voice && options.holdReply) {
+                // Voice mode: the reply is spoken first, the bubble follows.
+                turn.held = true;
+              } else {
+                removePending();
+                appendAssistantMessage(turn);
+              }
               // Stats refresh in the already-loaded page: no navigation here.
               var refresh = turn.alert ? refreshAlerts() : Promise.resolve();
               return refresh.then(refreshStats).then(function () {
@@ -1149,14 +1154,17 @@
           replyAudio.pause();
           digestAudio.pause();
         }
-        function playClip(blob, element) {
+        function playClip(blob, element, onStart) {
           // Resolves when the clip has finished, or straight away on failure.
+          // onStart runs the moment sound begins.
+          var started = function () { if (onStart) { onStart(); onStart = null; } };
           var context = ensureAudioContext();
           var viaElement = function () {
             return new Promise(function (resolve) {
               element.src = URL.createObjectURL(blob);
               element.onended = resolve;
               element.onerror = resolve;
+              element.onplaying = started;
               element.play().catch(resolve);
             });
           };
@@ -1177,21 +1185,43 @@
                 };
                 playingSource = source;
                 source.start();
+                started();
               });
             })
             .catch(viaElement);
         }
 
-        function speakText(text) {
+        // Cloud voice latency seen live on 2026-10-12: 5 to 17 s, usually 8 to 10.
+        var VOICE_WAIT_HINT = 'usually 8 to 10 s';
+        var waitTimer = null;
+        function startWaitTimer(label) {
+          stopWaitTimer();
+          var begun = Date.now();
+          var tick = function () {
+            var seconds = Math.round((Date.now() - begun) / 1000);
+            setVoiceState('thinking', label + ' ' + seconds + ' s (' + VOICE_WAIT_HINT + ')');
+          };
+          tick();
+          waitTimer = setInterval(tick, 1000);
+        }
+        function stopWaitTimer() {
+          if (waitTimer) {
+            clearInterval(waitTimer);
+            waitTimer = null;
+          }
+        }
+
+        function speakText(text, onStart) {
           // Resolves when playback has finished, whichever engine produced it.
           var trimmed = String(text || '').trim();
           if (!trimmed) {
+            if (onStart) { onStart(); }
             return Promise.resolve();
           }
           if (voiceEngine.value === 'browser' || speechStatus.dataset.engine === 'browser') {
-            return speakInBrowserAsync(trimmed);
+            return speakInBrowserAsync(trimmed, onStart);
           }
-          setVoiceState('speaking', 'Speaking… (cloud voice, this takes a few seconds to start)');
+          startWaitTimer('Making the voice reply…');
           return fetch('/speak', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -1204,25 +1234,34 @@
               return response.blob();
             })
             .then(function (blob) {
-              setVoiceState('speaking', 'Speaking… (cloud voice)');
-              return playClip(blob, replyAudio);
+              stopWaitTimer();
+              return playClip(blob, replyAudio, function () {
+                setVoiceState('speaking', 'Speaking… (cloud voice)');
+                if (onStart) { onStart(); onStart = null; }
+              });
             })
             .catch(function () {
-              return speakInBrowserAsync(trimmed);
+              stopWaitTimer();
+              return speakInBrowserAsync(trimmed, onStart);
             });
         }
 
-        function speakInBrowserAsync(text) {
+        function speakInBrowserAsync(text, onStart) {
           return new Promise(function (resolve) {
             if (!window.speechSynthesis) {
+              if (onStart) { onStart(); }
               resolve();
               return;
             }
             window.speechSynthesis.cancel();
             var utterance = new SpeechSynthesisUtterance(text);
             utterance.rate = 0.98;
+            utterance.onstart = function () {
+              setVoiceState('speaking', 'Speaking… (browser voice)');
+              if (onStart) { onStart(); onStart = null; }
+            };
             utterance.onend = resolve;
-            utterance.onerror = resolve;
+            utterance.onerror = function () { if (onStart) { onStart(); } resolve(); };
             setVoiceState('speaking', 'Speaking… (browser voice)');
             window.speechSynthesis.speak(utterance);
           });
@@ -1238,11 +1277,21 @@
           }
           setVoiceState('thinking', 'Heard “' + heard + '”. Thinking…');
           composerInput.value = '';
-          sendMessage(heard, { voice: true }).then(function (turn) {
+          var reveal = function (turn) {
+            removePending();
+            if (turn && turn.held) {
+              turn.held = false;
+              appendAssistantMessage(turn);
+            }
+          };
+          sendMessage(heard, { voice: true, holdReply: true }).then(function (turn) {
             if (!voiceMode) {
+              reveal(turn);
               return null;
             }
-            return speakText(turn ? turn.reply : 'Sorry, I could not reach the assistant.');
+            return speakText(turn ? turn.reply : 'Sorry, I could not reach the assistant.', function () {
+              reveal(turn);
+            }).then(function () { reveal(turn); });
           }).then(function () {
             if (voiceMode) {
               setTimeout(startListening, 250);
@@ -1254,6 +1303,7 @@
           voiceMode = false;
           try { recognizer && recognizer.abort(); } catch (error) { /* already stopped */ }
           if (window.speechSynthesis) { window.speechSynthesis.cancel(); }
+          stopWaitTimer();
           stopClip();
           micControl.dataset.listening = 'false';
           micControl.setAttribute('aria-pressed', 'false');

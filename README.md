@@ -236,8 +236,10 @@ speech recognition) → triage and answer (`POST /chat` with `voice: true`, whic
 asks for one or two plain spoken sentences and caps the reply at 120 tokens)
 → speak the reply (`POST /speak`, DigitalOcean `qwen3-tts-voicedesign`, or the
 browser voice if you pick it in the selector or the cloud voice is off) →
-listen again, until you press Stop. A status strip shows Listening, Thinking,
-and Speaking, and a typing bubble appears while the model works.
+listen again, until you press Stop. The reply is spoken first: while the
+cloud voice is being made the status strip counts the seconds ("Making the
+voice reply… 7 s, usually 8 to 10 s") and a typing bubble holds the place;
+the text bubble appears the moment the voice starts.
 
 Questions about recorded data are answered directly: "Who is driving Mom
 today?" calls `get_parent_summary` and replies with the sibling task, not the
