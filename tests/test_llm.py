@@ -44,10 +44,40 @@ def test_client_uses_environment_configuration_and_sdk_defaults(
     }
     client.complete([{"role": "user", "content": "hello"}])
     client.complete([], model="caller-selected-model")
+    client.complete([], reasoning_effort="low")
     assert [call["model"] for call in completion_calls] == [
         "configured-model",
         "caller-selected-model",
+        "configured-model",
     ]
+    # Thinking tiers answer directly by default; a caller may still override.
+    assert [call["reasoning_effort"] for call in completion_calls] == [
+        "none", "none", "low",
+    ]
+
+
+def test_reasoning_effort_can_be_switched_off_and_is_never_sent_in_mock(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("LLM_BASE_URL", "https://llm.example/v1")
+    monkeypatch.setenv("LLM_API_KEY", "test-key")
+    monkeypatch.setenv("LLM_MODEL", "configured-model")
+    monkeypatch.setenv("LLM_REASONING_EFFORT", "")
+    completion_calls: list[dict[str, Any]] = []
+
+    class StubOpenAI:
+        def __init__(self, **kwargs: Any) -> None:
+            self.chat = SimpleNamespace(completions=SimpleNamespace(
+                create=lambda **kw: completion_calls.append(kw)
+            ))
+
+    monkeypatch.setattr(llm, "OpenAI", StubOpenAI)
+    llm.create_llm_client().complete([])
+    assert "reasoning_effort" not in completion_calls[0]
+
+    mock = llm.LLMClient(base_url="mock", api_key="", model="m")
+    assert mock.reasoning_effort == "none"
+    assert mock._with_defaults({"max_completion_tokens": 8}) == {"max_completion_tokens": 8}
 
 
 def test_real_sdk_has_configured_timeout_and_retries(

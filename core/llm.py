@@ -13,6 +13,11 @@ from openai import OpenAI
 
 REQUEST_TIMEOUT_SECONDS = 30.0
 MAX_RETRIES = 2
+# The configured tiers are thinking models: with the default effort their
+# reasoning consumes the whole completion budget and the content comes back
+# empty (verified 2026-10-12 on glm-5.3-flash: finish_reason "length", 512
+# reasoning tokens, no text). "none" makes every tier answer directly.
+DEFAULT_REASONING_EFFORT = "none"
 MOCK_BASE_URL = "mock"
 MOCK_MODEL = "mock"
 MOCK_REPLY = "I’m here to help. What would be most useful right now?"
@@ -76,9 +81,17 @@ class _MockCompletions:
 class LLMClient:
     """Expose the OpenAI chat-completions surface in real and mock modes."""
 
-    def __init__(self, base_url: str, api_key: str, model: str) -> None:
+    def __init__(
+        self,
+        base_url: str,
+        api_key: str,
+        model: str,
+        *,
+        reasoning_effort: str | None = DEFAULT_REASONING_EFFORT,
+    ) -> None:
         self.base_url = base_url
         self.model = model
+        self.reasoning_effort = reasoning_effort or None
         self.is_mock = base_url.lower() == MOCK_BASE_URL
         self._sdk_client: OpenAI | None = None
 
@@ -110,8 +123,14 @@ class LLMClient:
     ) -> Any:
         """Use the configured model unless the caller selects another model."""
         return self.chat.completions.create(
-            model=model or self.model, messages=messages, **kwargs
+            model=model or self.model, messages=messages, **self._with_defaults(kwargs)
         )
+
+    def _with_defaults(self, kwargs: dict[str, Any]) -> dict[str, Any]:
+        """Apply the reasoning-effort default to real requests only."""
+        if self.is_mock or self.reasoning_effort is None or "reasoning_effort" in kwargs:
+            return kwargs
+        return {**kwargs, "reasoning_effort": self.reasoning_effort}
 
     def complete_raw(
         self,
@@ -127,6 +146,7 @@ class LLMClient:
         of inventing values.
         """
         selected_model = model or self.model
+        kwargs = self._with_defaults(kwargs)
         if self.is_mock:
             completion = self.chat.completions.create(
                 model=selected_model, messages=messages, **kwargs
@@ -162,5 +182,9 @@ def create_llm_client() -> LLMClient:
         raise ValueError("LLM_BASE_URL must not be empty.")
     if base_url.lower() == MOCK_BASE_URL:
         model = model or MOCK_MODEL
+    # LLM_REASONING_EFFORT unset -> "none"; set it to "" to send nothing.
+    effort = os.getenv("LLM_REASONING_EFFORT", DEFAULT_REASONING_EFFORT).strip()
 
-    return LLMClient(base_url=base_url, api_key=api_key, model=model)
+    return LLMClient(
+        base_url=base_url, api_key=api_key, model=model, reasoning_effort=effort or None
+    )

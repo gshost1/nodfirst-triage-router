@@ -277,3 +277,12 @@ def test_urgent_reply_is_never_replaced_by_a_summary_tool_result(tmp_path: Path)
     assert result.reply.startswith("Please call 911 now")
     assert "Daily digest" not in result.reply
     assert "only when the user asks for a" in SYSTEM_PROMPT
+
+
+def test_empty_model_reply_gets_an_honest_fallback(tmp_path: Path) -> None:
+    """A thinking model that spends its budget on reasoning returns no text."""
+    store = CareStore(tmp_path / "e.sqlite3")
+    result = CaregiverAgent(store, Replies(completion(""))).run("How was Mom today?")
+    assert result.tool_actions == []
+    assert "couldn't put a reply together" in result.reply
+    assert "911" in result.reply

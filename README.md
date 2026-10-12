@@ -121,6 +121,7 @@ never commit or share it. `.env.example` holds placeholders only.
 | `PORT` | Loopback port for the local app | `8000` |
 | `CARE_DB` | Optional SQLite path override (default `nodfirst.sqlite3`, git-ignored) | unset |
 | `DO_ROUTER_MODEL` | Optional Inference Router name override (default `router:nodfirst`) | unset |
+| `LLM_REASONING_EFFORT` | Sent on every real request. The GLM and Qwen tiers are thinking models; without it their reasoning uses the whole completion budget and the text comes back empty (verified 2026-10-12). Set to `""` to omit | `none` (default) |
 | `INBOUND_CONTACTS` | Optional `number-or-email=Name` pairs for `POST /inbound` sender mapping | unset |
 | `INBOUND_SECRET` | Optional shared secret required in `X-Inbound-Token` on `POST /inbound` | unset |
 | `TTS_MODEL` / `TTS_VOICE` | Optional text-to-speech model id and voice design for "Read digest aloud" | defaults `qwen3-tts-voicedesign`, a warm calm adult woman |

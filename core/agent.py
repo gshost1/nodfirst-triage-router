@@ -35,6 +35,13 @@ SYSTEM_PROMPT = (
 )
 
 
+# Shown when a model returns no text at all (for example a reasoning budget
+# exhausted before any answer). Honest, and never pretends an action happened.
+EMPTY_REPLY_FALLBACK = (
+    "I'm here with you, but I couldn't put a reply together just now. "
+    "Please send that again. If this could be an emergency, call 911 now."
+)
+
 # Replies for these tools are the store's own text, never a model paraphrase.
 GROUNDED_SUMMARY_TOOLS = frozenset({"get_parent_summary", "summarize_day"})
 
@@ -146,6 +153,8 @@ class CaregiverAgent:
                          if a.name in GROUNDED_SUMMARY_TOOLS]
             if summaries and not urgent:
                 text = "\n".join(summaries)
+        if not text.strip():
+            text = EMPTY_REPLY_FALLBACK
         if urgent:
             text = f"{text}\n\n{URGENT_ESCALATION_NOTE}".strip()
         return AgentResult(text, actions, completions)
