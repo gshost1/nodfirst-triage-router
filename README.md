@@ -26,7 +26,7 @@ store, and an optional DigitalOcean Inference Router path.
 | `nodfirst` Inference Router created in the DO Control Panel | **Done** (2026-10-12): routine -> `glm-5.3-flash`, logistics -> `glm-5.3`, urgent-health -> `qwen3.8-max`, fallback `glm-5.3-flash` |
 | DigitalOcean chat completion through `router:nodfirst` | Verified once: one routine request, HTTP 200, serving model `glm-5.3-flash`, selected route `routine`, no retries |
 | Nous Hermes model or agent used/deployed | **No.** This app is Hermes-ready only |
-| Public GitHub repository | **Not created.** Publication is a pending owner action |
+| GitHub repository | Pushed to <https://github.com/gshost1/nodfirst-triage-router> (private as of 2026-10-12; make it public for the submission) |
 | Spend | Effectively $0.00: one 62-token router smoke request; costs shown anywhere are estimates |
 
 ## Architecture
