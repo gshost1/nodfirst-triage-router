@@ -35,6 +35,7 @@ from core.metrics_store import MetricsStore
 from core.mock_agent import mock_agent_completion
 from core.notify import BotmailNotifier, NullNotifier
 from core.pricing import PricingTable
+from core.speech import DOSpeech, NullSpeech, SpeechClip
 from core.store import CareStore
 from core.tools import ToolAction
 from router.classify import MessageClass, TriageClassifier, model_classification_call
@@ -142,8 +143,10 @@ class ChatService:
         clock: Callable[[], float] = time.perf_counter,
         mock_completion: Callable[..., Any] | None = None,
         notifier: BotmailNotifier | NullNotifier | None = None,
+        speech: DOSpeech | NullSpeech | None = None,
     ) -> None:
         self.notifier = notifier or NullNotifier()
+        self.speech = speech or NullSpeech()
         self.client = client
         self.config = config
         self.store = store
@@ -234,7 +237,11 @@ class ChatService:
 
     def digest(self) -> dict[str, Any]:
         """The store-grounded daily digest, with no model call."""
-        return self.store.daily_digest()
+        return {**self.store.daily_digest(), "speech": self.speech.status()}
+
+    def speak_digest(self) -> SpeechClip:
+        """Read the digest aloud through text-to-speech (raises SpeechError)."""
+        return self.speech.synthesize(self.store.daily_digest()["summary"])
 
     def email_digest(self) -> dict[str, Any]:
         """Email the digest to the alert recipients through the notifier."""

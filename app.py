@@ -29,6 +29,7 @@ from core.inbound import (
 from core.llm import create_llm_client
 from core.metrics_store import MetricsStore
 from core.notify import notifier_from_env
+from core.speech import SpeechError, speech_from_env
 from core.store import CareStore
 from router.config import RouterConfig
 
@@ -74,6 +75,7 @@ def build_service() -> ChatService:
         store=CareStore(db_path),
         metrics=MetricsStore(db_path),
         notifier=notifier_from_env(),
+        speech=speech_from_env(),
     )
 
 
@@ -166,6 +168,22 @@ def create_app(
     def digest() -> dict[str, Any]:
         """The store-grounded daily digest; no model call, no cost."""
         return get_service().digest()
+
+    @api.post("/digest/speak")
+    def speak_digest() -> Response:
+        """The digest as WAV audio from DigitalOcean text-to-speech.
+
+        503 in MOCK mode or without a key: the page then uses the browser's
+        own speech synthesis and says so.
+        """
+        try:
+            clip = get_service().speak_digest()
+        except SpeechError as error:
+            raise HTTPException(status_code=error.status_code, detail=str(error)) from error
+        return Response(
+            clip.audio, media_type=clip.media_type,
+            headers={"Cache-Control": "no-store", "X-Speech-Model": clip.model},
+        )
 
     @api.post("/digest/send")
     def send_digest() -> dict[str, Any]:

@@ -7,104 +7,189 @@
     <style>
       :root {
         color-scheme: light;
-        --ink: #1c2430;
-        --muted: #5a6675;
-        --line: #d4dae2;
+        --ink: #16202b;
+        --ink-soft: #3b4756;
+        --muted: #66717f;
+        --line: #e3e8ee;
+        --line-strong: #cbd3dc;
         --surface: #ffffff;
-        --page: #f4f6f9;
+        --surface-2: #f6f8fa;
+        --page: #eef1f5;
+        --brand: #1f4e79;
+        --brand-ink: #ffffff;
+        --brand-soft: #e8f0f8;
         --routine: #1a7f37;
         --routine-bg: #e6f4ea;
         --logistics: #0b5cad;
         --logistics-bg: #e7f0fd;
         --urgent: #b3261e;
         --urgent-bg: #fdecea;
+        --warn-bg: #fff7e6;
+        --warn-line: #e8b86b;
+        --radius: 12px;
+        --radius-sm: 8px;
+        --shadow: 0 1px 2px rgba(22, 32, 43, 0.05), 0 4px 16px rgba(22, 32, 43, 0.05);
       }
       * { box-sizing: border-box; }
+      html { scroll-behavior: smooth; }
       body {
         margin: 0;
         background: var(--page);
         color: var(--ink);
-        font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+        -webkit-font-smoothing: antialiased;
       }
-      header, main { max-width: 1080px; margin: 0 auto; padding: 0 20px; }
-      header { padding-top: 24px; }
-      h1 { font-size: 22px; margin: 0 0 4px; }
-      h2 { font-size: 15px; margin: 0 0 10px; text-transform: uppercase; letter-spacing: .04em; }
-      #mode-note { margin: 0 0 10px; color: var(--muted); }
+      header, main { max-width: 1180px; margin: 0 auto; padding: 0 20px; }
+      header { padding-top: 28px; }
+      .masthead { display: flex; flex-wrap: wrap; align-items: baseline; gap: 10px 14px; margin-bottom: 6px; }
+      h1 { font-size: 24px; font-weight: 700; letter-spacing: -0.01em; margin: 0; }
+      .tagline { margin: 0; color: var(--muted); }
+      #mode-note { margin: 0 0 12px; color: var(--muted); font-size: 14px; max-width: 72ch; }
       #disclaimer {
-        margin: 0 0 20px;
-        padding: 10px 12px;
-        border: 1px solid #f0c9a0;
-        border-left: 4px solid #c47b00;
-        background: #fdf6e8;
-        border-radius: 6px;
+        margin: 0 0 22px;
+        padding: 10px 14px;
+        display: flex; gap: 10px; align-items: flex-start;
+        border: 1px solid var(--warn-line);
+        background: var(--warn-bg);
+        border-radius: var(--radius-sm);
+        font-size: 14px;
+        color: #5a3b00;
       }
-      main { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: 20px; padding-bottom: 40px; }
-      section, aside > section {
+      #disclaimer::before { content: "!"; flex: none; width: 20px; height: 20px; border-radius: 50%; background: #c47b00; color: #fff; font-weight: 700; font-size: 13px; line-height: 20px; text-align: center; margin-top: 1px; }
+
+      main { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(320px, 1fr); gap: 20px; padding-bottom: 48px; align-items: start; }
+      section {
         background: var(--surface);
         border: 1px solid var(--line);
-        border-radius: 8px;
-        padding: 14px;
+        border-radius: var(--radius);
+        padding: 18px;
+        box-shadow: var(--shadow);
       }
-      aside { display: grid; gap: 20px; align-content: start; }
-      #conversation { display: grid; gap: 12px; margin-bottom: 14px; max-height: 52vh; overflow-y: auto; }
-      .message { border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
-      .message.user { background: #f7f9fc; }
-      .message.assistant { background: #ffffff; }
-      .message .who { margin: 0; font-size: 12px; font-weight: 600; color: var(--muted); }
-      .message .text { margin: 4px 0 0; white-space: pre-wrap; }
+      aside { display: grid; gap: 16px; align-content: start; position: sticky; top: 16px; }
+      aside section { padding: 16px; }
+      h2 { font-size: 12px; font-weight: 700; margin: 0 0 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+      section > p.muted { margin: -4px 0 12px; font-size: 13px; line-height: 1.45; }
+      .empty, .muted { color: var(--muted); }
+
+      /* Conversation */
+      #conversation { display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px; max-height: 58vh; min-height: 220px; overflow-y: auto; padding: 4px 6px 4px 2px; }
+      #conversation .empty { margin: auto; text-align: center; }
+      .message { max-width: 86%; border-radius: 14px; padding: 10px 14px; border: 1px solid transparent; }
+      .message.user { align-self: flex-end; background: var(--brand-soft); border-color: #cfdeed; border-bottom-right-radius: 4px; }
+      .message.assistant { align-self: flex-start; background: var(--surface); border-color: var(--line); border-bottom-left-radius: 4px; }
+      .message .who { margin: 0 0 2px; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+      .message .text { margin: 0; white-space: pre-wrap; line-height: 1.5; }
       .route-badge {
-        display: inline-block;
-        margin: 0 0 8px;
-        padding: 3px 9px;
-        border: 1px solid;
-        border-radius: 999px;
-        font-size: 12px;
-        font-weight: 600;
+        display: inline-flex; align-items: center; gap: 6px;
+        margin: 0 0 8px; padding: 3px 10px 3px 8px;
+        border: 1px solid; border-radius: 999px;
+        font-size: 11.5px; font-weight: 600; font-variant-numeric: tabular-nums;
+        max-width: 100%; white-space: normal;
       }
-      .route-dot { display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 50%; }
-      .route-routine { background: var(--routine-bg); border-color: var(--routine); color: #14532d; }
-      .route-logistics { background: var(--logistics-bg); border-color: var(--logistics); color: #0b3f7a; }
-      .route-urgent { background: var(--urgent-bg); border-color: var(--urgent); color: #7f1d1d; }
+      .route-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; flex: none; }
+      .route-routine { background: var(--routine-bg); border-color: #b7dfc3; color: #14532d; }
+      .route-logistics { background: var(--logistics-bg); border-color: #bcd3f2; color: #0b3f7a; }
+      .route-urgent { background: var(--urgent-bg); border-color: #f3c0bb; color: #7f1d1d; }
       .route-dot-routine { background: var(--routine); }
       .route-dot-logistics { background: var(--logistics); }
       .route-dot-urgent { background: var(--urgent); }
-      .escalation { margin: 8px 0 0; padding: 8px 10px; background: var(--urgent-bg); border-left: 4px solid var(--urgent); border-radius: 4px; color: #7f1d1d; }
-      .tool-note { margin: 8px 0 0; font-size: 13px; color: var(--muted); }
-      .empty, .muted { color: var(--muted); }
-      #composer-form { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: end; }
-      #composer-form label { grid-column: 1 / -1; font-size: 12px; font-weight: 600; color: var(--muted); }
-      #composer { padding: 9px 10px; border: 1px solid var(--line); border-radius: 6px; font: inherit; }
-      button { padding: 9px 14px; border: 1px solid #1f4e79; background: #1f4e79; color: #fff; border-radius: 6px; font: inherit; cursor: pointer; }
-      button:focus-visible, #composer:focus-visible { outline: 3px solid #1f4e79; outline-offset: 2px; }
-      #replay-control { background: #fff; color: #1f4e79; }
-      #replay-status { margin: 10px 0 0; font-size: 13px; color: var(--muted); }
-      #tool-actions { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-      #sender { padding: 9px 10px; border: 1px solid #94a3b8; border-radius: 6px; font: inherit; }
+      .message.assistant[data-message-class="urgent"] { border-color: #f3c0bb; }
+      .escalation { margin: 10px 0 0; padding: 9px 12px; background: var(--urgent-bg); border-left: 4px solid var(--urgent); border-radius: 6px; color: #7f1d1d; font-size: 14px; }
+      p.escalation[data-role="error"] { align-self: stretch; }
+      .tool-note { margin: 8px 0 0; font-size: 12.5px; color: var(--muted); }
+
+      /* Composer */
+      #composer-form {
+        display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; gap: 8px; align-items: center;
+        padding: 10px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface-2);
+      }
+      #composer-form label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+      #composer-form p { grid-column: 1 / -1; margin: 2px 2px 0; font-size: 12.5px; }
+      #sender, #composer, #mic-control, #send-button { height: 42px; }
+      #sender {
+        padding: 0 32px 0 12px; border: 1px solid var(--line-strong); border-radius: 999px; background: #fff; font: inherit; font-weight: 600; color: var(--brand);
+        appearance: none; -webkit-appearance: none;
+        background-image: linear-gradient(45deg, transparent 50%, var(--brand) 50%), linear-gradient(135deg, var(--brand) 50%, transparent 50%);
+        background-position: calc(100% - 17px) 18px, calc(100% - 12px) 18px; background-size: 5px 5px, 5px 5px; background-repeat: no-repeat;
+      }
+      #composer { padding: 0 14px; border: 1px solid var(--line-strong); border-radius: 999px; font: inherit; background: #fff; min-width: 0; }
+      #composer::placeholder { color: #93a0ae; }
+      #mic-control { width: 42px; padding: 0; border-radius: 50%; font-size: 18px; line-height: 1; background: #fff; color: var(--brand); border-color: var(--line-strong); }
+      #mic-control[data-listening="true"] { background: var(--urgent); border-color: var(--urgent); color: #fff; animation: pulse 1.2s ease-in-out infinite; }
+      #mic-control:disabled { opacity: 0.45; cursor: not-allowed; }
+      @keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(179, 38, 30, .45); } 50% { box-shadow: 0 0 0 8px rgba(179, 38, 30, 0); } }
+      #send-button { padding: 0 20px; border-radius: 999px; font-weight: 600; }
+      #send-button[data-busy="true"] { opacity: .6; }
+
+      /* Buttons */
+      button {
+        padding: 9px 14px; border: 1px solid var(--brand); background: var(--brand); color: var(--brand-ink);
+        border-radius: var(--radius-sm); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer;
+        transition: background .15s, box-shadow .15s, transform .05s;
+      }
+      button:hover { background: #2a5f90; }
+      button:active { transform: translateY(1px); }
+      button:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+      button:focus-visible, #composer:focus-visible, #sender:focus-visible { outline: 3px solid rgba(31, 78, 121, .35); outline-offset: 2px; }
+      .secondary, #replay-control, #digest-email, #digest-speak, .ack-alert { background: #fff; color: var(--brand); border-color: var(--line-strong); }
+      .secondary:hover, #replay-control:hover, #digest-email:hover:not(:disabled), #digest-speak:hover, .ack-alert:hover { background: var(--brand-soft); }
+      .button-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 10px; }
+      [data-replaying="true"], [data-busy="true"] { opacity: .7; cursor: progress; }
+      #replay-status, #digest-status, #speech-status, #alert-delivery { margin: 0; font-size: 12.5px; color: var(--muted); }
+      #speech-status, #alert-delivery { margin-top: 4px; }
+      #digest-audio { width: 100%; margin-top: 10px; }
+
+      /* Alerts */
       #alerts { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-      .alert { padding: 8px 10px; background: var(--urgent-bg); border-left: 4px solid var(--urgent); border-radius: 4px; }
-      .alert[data-acknowledged="true"] { opacity: 0.6; border-left-color: #94a3b8; background: #f1f5f9; }
-      .alert .alert-meta { margin: 0 0 4px; font-size: 12px; font-weight: 600; color: #7f1d1d; }
+      .alert { padding: 10px 12px; background: var(--urgent-bg); border: 1px solid #f3c0bb; border-left: 4px solid var(--urgent); border-radius: var(--radius-sm); }
+      .alert[data-acknowledged="true"] { opacity: .65; border-color: var(--line); border-left-color: #9aa5b1; background: var(--surface-2); }
+      .alert .alert-meta { margin: 0 0 4px; font-size: 11.5px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; color: #7f1d1d; }
+      .alert[data-acknowledged="true"] .alert-meta { color: var(--muted); }
       .alert .alert-text { margin: 0 0 6px; }
-      .alert button { padding: 4px 10px; font-size: 13px; }
-      .tool-action { border: 1px solid var(--line); border-left: 4px solid var(--logistics); border-radius: 6px; padding: 8px 10px; font-size: 13px; }
-      .tool-name { font-weight: 600; display: block; }
-      .tool-args, .tool-result { color: var(--muted); display: block; }
-      dl { margin: 0; display: grid; gap: 8px; }
-      dl > div { display: flex; justify-content: space-between; gap: 12px; border-bottom: 1px dashed var(--line); padding-bottom: 6px; }
-      dt { color: var(--muted); }
-      dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+      .alert .alert-email { margin: 0 0 8px; font-size: 12.5px; color: var(--ink-soft); }
+      .alert button { padding: 5px 11px; font-size: 13px; }
+      #alerts-panel[data-open-count]:not([data-open-count="0"]) h2::after {
+        content: attr(data-open-count) " open"; margin-left: 8px; padding: 1px 8px; border-radius: 999px; background: var(--urgent); color: #fff; font-size: 10.5px; letter-spacing: .02em;
+      }
+
+      /* Tool actions */
+      #tool-actions { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; max-height: 220px; overflow-y: auto; }
+      .tool-action { display: grid; gap: 2px; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-2); font-size: 12.5px; }
+      .tool-name { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 600; color: var(--brand); }
+      .tool-args { color: var(--ink-soft); }
+      .tool-result { color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; overflow-wrap: anywhere; }
+
+      /* Stats */
+      dl { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0; }
+      dl > div { padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-2); }
+      dl > div:nth-child(2), dl > div:last-child { grid-column: 1 / -1; }
+      dt { font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
+      dd { margin: 2px 0 0; font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+      #stat-calls-by-tier { font-size: 14px; }
+      #stat-savings { color: var(--routine); }
       #stats-notes { margin: 10px 0 0; font-size: 12px; }
-      @media (max-width: 820px) { main { grid-template-columns: 1fr; } }
+
+      @media (max-width: 900px) {
+        main { grid-template-columns: 1fr; }
+        aside { position: static; }
+        #conversation { max-height: 48vh; }
+        .message { max-width: 94%; }
+        #composer-form { grid-template-columns: 1fr auto; }
+        #sender { grid-column: 1 / -1; justify-self: start; }
+      }
+      @media (prefers-reduced-motion: reduce) { #mic-control[data-listening="true"] { animation: none; } html { scroll-behavior: auto; } }
     </style>
   </head>
   <body>
     <header>
-      <h1>Nod First Triage Router</h1>
+      <div class="masthead">
+        <h1>Nod First Triage Router</h1>
+        <p class="tagline">Every message about Mom gets the model it deserves, not the biggest one.</p>
+      </div>
       <p id="mode-note">
-        Local demo. Every reply shows the route, model, latency, and estimated cost
-        returned by the local API. Model calls run in MOCK mode unless the server is
-        started with another routing mode.
+        Routine check-ins go to the small model, logistics to the mid tier, and anything
+        urgent-health bypasses the router to the strongest model. Each reply shows the
+        route, model, latency, and estimated cost from the local API.
       </p>
       <p id="disclaimer" role="note">
         Not medical advice. This demo classifies caregiving messages and never
@@ -135,10 +220,12 @@
             id="composer"
             name="message"
             type="text"
-            placeholder="Type a caregiving update or question"
+            placeholder="Message about Mom, e.g. “Mom skipped her 8am metformin”"
             required
           />
+          <button id="mic-control" type="button" aria-pressed="false" aria-label="Speak a message" title="Speak a message (browser speech recognition)">🎤</button>
           <button id="send-button" type="submit">Send</button>
+          <p id="mic-status" role="status" class="muted" data-engine="">Voice input: checking browser support...</p>
         </form>
       </section>
 
@@ -169,9 +256,14 @@
             Asks the assistant for today's digest. The request is routine, so it
             goes to the small model; the text itself comes straight from the store.
           </p>
-          <button id="digest-control" type="button">Ask for today's digest</button>
-          <button id="digest-email" type="button" disabled>Email digest to siblings</button>
+          <div class="button-row">
+            <button id="digest-control" type="button">Ask for today's digest</button>
+            <button id="digest-email" type="button" disabled>Email digest to siblings</button>
+            <button id="digest-speak" type="button">🔊 Read digest aloud</button>
+          </div>
           <p id="digest-status" role="status" class="muted" data-email-status="">Not sent yet.</p>
+          <p id="speech-status" role="status" class="muted" data-engine="">Voice output: checking...</p>
+          <audio id="digest-audio" controls hidden></audio>
         </section>
 
         <section id="alerts-panel" aria-labelledby="alerts-heading" data-source="GET /alerts" data-open-count="0">
@@ -283,6 +375,11 @@
         var digestControl = document.getElementById('digest-control');
         var digestEmail = document.getElementById('digest-email');
         var digestStatus = document.getElementById('digest-status');
+        var digestSpeak = document.getElementById('digest-speak');
+        var speechStatus = document.getElementById('speech-status');
+        var digestAudio = document.getElementById('digest-audio');
+        var micControl = document.getElementById('mic-control');
+        var micStatus = document.getElementById('mic-status');
 
         var DEMO_MESSAGES = JSON.parse(
           document.getElementById('demo-script').textContent
@@ -292,6 +389,10 @@
           if (placeholder && placeholder.parentNode === list) {
             list.removeChild(placeholder);
           }
+        }
+
+        function scrollConversation() {
+          conversation.scrollTop = conversation.scrollHeight;
         }
 
         function money(value) {
@@ -342,6 +443,7 @@
           conversation.dataset.messageCount = String(
             Number(conversation.dataset.messageCount) + 1
           );
+          scrollConversation();
         }
 
         function appendError(message) {
@@ -350,6 +452,7 @@
           item.dataset.role = 'error';
           item.textContent = 'The local API did not answer: ' + message;
           conversation.appendChild(item);
+          scrollConversation();
         }
 
         function appendAssistantMessage(turn) {
@@ -430,6 +533,7 @@
           conversation.dataset.replyCount = String(
             Number(conversation.dataset.replyCount) + 1
           );
+          scrollConversation();
           renderToolActions(turn.tool_actions || []);
         }
 
@@ -552,6 +656,7 @@
           conversation.dataset.replyCount = String(
             Number(conversation.dataset.replyCount) + 1
           );
+          scrollConversation();
         }
 
         function renderThread(thread) {
@@ -806,6 +911,117 @@
           sendMessage("Send today's digest to the siblings");
         });
 
+        // ---- Voice input: browser speech recognition. The inference provider
+        // has no speech-to-text route (verified 2026-10-12), so the microphone
+        // stays local; the transcript goes through the same triage as typed text.
+        var Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        var recognizer = null;
+        if (!Recognition) {
+          micControl.disabled = true;
+          micStatus.dataset.engine = 'none';
+          micStatus.textContent = 'Voice input: not supported in this browser (type instead).';
+        } else {
+          micStatus.dataset.engine = 'browser';
+          micStatus.textContent = 'Voice input: browser speech recognition, nothing leaves the page until you send.';
+          recognizer = new Recognition();
+          recognizer.lang = 'en-US';
+          recognizer.interimResults = true;
+          recognizer.maxAlternatives = 1;
+          recognizer.addEventListener('result', function (event) {
+            var transcript = '';
+            for (var i = event.resultIndex; i < event.results.length; i += 1) {
+              transcript += event.results[i][0].transcript;
+            }
+            composerInput.value = transcript.trim();
+          });
+          recognizer.addEventListener('end', function () {
+            micControl.dataset.listening = 'false';
+            micControl.setAttribute('aria-pressed', 'false');
+            micControl.textContent = '🎤';
+            if (composerInput.value.trim()) {
+              micStatus.textContent = 'Heard: "' + composerInput.value.trim() + '" — sending.';
+              var text = composerInput.value;
+              composerInput.value = '';
+              sendMessage(text);
+            } else {
+              micStatus.textContent = 'Voice input: nothing heard. Try again.';
+            }
+          });
+          recognizer.addEventListener('error', function (event) {
+            micStatus.textContent = 'Voice input error: ' + event.error + '.';
+          });
+          micControl.addEventListener('click', function () {
+            if (micControl.dataset.listening === 'true') {
+              recognizer.stop();
+              return;
+            }
+            composerInput.value = '';
+            micControl.dataset.listening = 'true';
+            micControl.setAttribute('aria-pressed', 'true');
+            micControl.textContent = '⏹';
+            micStatus.textContent = 'Listening...';
+            try {
+              recognizer.start();
+            } catch (error) {
+              micStatus.textContent = 'Voice input error: ' + error.message;
+              micControl.dataset.listening = 'false';
+              micControl.textContent = '🎤';
+            }
+          });
+        }
+
+        // ---- Voice output: the server's text-to-speech model when the local
+        // API has a live endpoint, otherwise the browser's own speech synthesis.
+        function renderSpeech(speech) {
+          speechStatus.dataset.engine = speech && speech.enabled ? speech.provider : 'browser';
+          speechStatus.textContent = speech && speech.enabled
+            ? 'Voice output: ' + speech.provider + ' ' + speech.model + '.'
+            : 'Voice output: browser speech synthesis (' +
+              ((speech && speech.reason) || 'server speech off') + ').';
+        }
+
+        function speakInBrowser(text) {
+          if (!window.speechSynthesis) {
+            speechStatus.textContent = 'Voice output: not supported in this browser.';
+            return;
+          }
+          window.speechSynthesis.cancel();
+          var utterance = new SpeechSynthesisUtterance(text);
+          utterance.rate = 0.95;
+          window.speechSynthesis.speak(utterance);
+          speechStatus.dataset.lastEngine = 'browser';
+          speechStatus.textContent = 'Voice output: reading with browser speech synthesis.';
+        }
+
+        digestSpeak.addEventListener('click', function () {
+          digestSpeak.dataset.busy = 'true';
+          speechStatus.textContent = 'Voice output: requesting audio...';
+          fetch('/digest/speak', { method: 'POST' })
+            .then(function (response) {
+              if (response.status === 503) {
+                return fetch('/digest').then(function (r) { return r.json(); })
+                  .then(function (digest) { speakInBrowser(digest.summary); return null; });
+              }
+              if (!response.ok) {
+                throw new Error('POST /digest/speak returned ' + response.status);
+              }
+              var model = response.headers.get('X-Speech-Model') || 'server';
+              return response.blob().then(function (blob) {
+                digestAudio.src = URL.createObjectURL(blob);
+                digestAudio.hidden = false;
+                speechStatus.dataset.lastEngine = 'server';
+                speechStatus.textContent = 'Voice output: playing ' + model + ' audio.';
+                return digestAudio.play();
+              });
+            })
+            .catch(function (error) {
+              speechStatus.textContent = 'Voice output failed: ' + error.message;
+            })
+            .finally(function () {
+              delete digestSpeak.dataset.busy;
+            });
+        });
+
         digestEmail.addEventListener('click', function () {
           digestEmail.dataset.busy = 'true';
           fetch('/digest/send', { method: 'POST' })
@@ -851,6 +1067,10 @@
         refreshAlerts().catch(function (error) {
           appendError(error.message);
         });
+        fetch('/digest', { headers: { Accept: 'application/json' } })
+          .then(function (response) { return response.json(); })
+          .then(function (digest) { renderSpeech(digest.speech); })
+          .catch(function () { renderSpeech(null); });
         refreshStats().catch(function (error) {
           statsNotes.textContent = 'Stats unavailable: ' + error.message;
         });

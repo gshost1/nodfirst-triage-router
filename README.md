@@ -24,7 +24,8 @@ store, and an optional DigitalOcean Inference Router path.
 | Five-message demo CLI (`scripts/demo.py`) | Working offline (MOCK rehearsal) |
 | DigitalOcean model list (`GET /v1/models`) | Verified once: HTTP 200, 81 model IDs, no Nous Hermes model present |
 | `nodfirst` Inference Router created in the DO Control Panel | **Done** (2026-10-12): routine -> `glm-5.3-flash`, logistics -> `glm-5.3`, urgent-health -> `qwen3.8-max`, fallback `glm-5.3-flash` |
-| DigitalOcean chat completion through `router:nodfirst` | Verified once: one routine request, HTTP 200, serving model `glm-5.3-flash`, selected route `routine`, no retries |
+| DigitalOcean chat completion through `router:nodfirst` | Verified 2026-10-12 with the five-message rehearsal in `ROUTER_MODE=do`: 15 calls, both urgent messages served by `qwen3.8-max` via the direct-large bypass, routine/logistics served by `glm-5.3-flash`/`glm-5.3` with the router's selected route reported; estimated spend $0.012 |
+| DigitalOcean text-to-speech (`qwen3-tts-voicedesign`) | Verified 2026-10-12: `POST /digest/speak` returned a 26 s WAV |
 | Nous Hermes model or agent used/deployed | **No.** This app is Hermes-ready only |
 | GitHub repository | Pushed to <https://github.com/gshost1/nodfirst-triage-router> (private as of 2026-10-12; make it public for the submission) |
 | Spend | Effectively $0.00: one 62-token router smoke request; costs shown anywhere are estimates |
@@ -122,6 +123,7 @@ never commit or share it. `.env.example` holds placeholders only.
 | `DO_ROUTER_MODEL` | Optional Inference Router name override (default `router:nodfirst`) | unset |
 | `INBOUND_CONTACTS` | Optional `number-or-email=Name` pairs for `POST /inbound` sender mapping | unset |
 | `INBOUND_SECRET` | Optional shared secret required in `X-Inbound-Token` on `POST /inbound` | unset |
+| `TTS_MODEL` / `TTS_VOICE` | Optional text-to-speech model id and voice design for "Read digest aloud" | defaults `qwen3-tts-voicedesign`, a warm calm adult woman |
 | `ALERT_EMAIL_TO` | Optional comma-separated recipients for urgent alert email | unset (alerts stay local) |
 | `BOTMAIL_API_KEY` / `BOTMAIL_KEY_FILE` | Botmail key, inline or as a file path. Never printed, logged, or committed | unset |
 
@@ -205,6 +207,23 @@ tasks); the model never paraphrases it, so nothing in the digest is invented.
   `ALERT_EMAIL_TO` through Botmail when alert email is configured; otherwise
   it reports why not. No scheduler is included: a cron hitting
   `POST /digest/send` once a day is the whole "daily" part.
+
+### Voice: speak to it, hear the digest
+
+- **Voice input** is the browser's own speech recognition (the microphone
+  button next to the composer). DigitalOcean has no speech-to-text route:
+  verified 2026-10-12, `POST /v1/audio/transcriptions` is 404 for every model
+  and `nemotron-3-nano-omni` rejects audio content parts. So the transcript is
+  produced locally and goes through the same triage as typed text. Nothing is
+  sent until the recognizer stops.
+- **Voice output** is DigitalOcean text-to-speech: **Read digest aloud** calls
+  `POST /digest/speak`, which sends the digest text to `qwen3-tts-voicedesign`
+  on `/v1/audio/speech` (same endpoint and key as the chat models; `TTS_MODEL`
+  and `TTS_VOICE` override the model and voice design) and streams the WAV
+  back to an audio player. Verified live: a 26 second WAV of the digest.
+  Inputs are capped at 320 characters because longer ones time out on the
+  gateway. In MOCK mode, or without a key, the endpoint answers 503 and the
+  page falls back to the browser's speech synthesis and says so.
 
 ### Inbound webhook (SMS or email gateway)
 
