@@ -19,7 +19,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from pydantic import BaseModel, Field
 
 from core.chat import ChatService
-from core.demo_data import SUGGESTED_QUESTIONS, is_seeded, seed_demo
+from core.demo_data import is_seeded, seed_demo
 from core.inbound import (
     InboundError,
     contacts_from_env,
@@ -188,11 +188,8 @@ def create_app(
 
     @api.get("/demo")
     def demo_state() -> dict[str, Any]:
-        """Suggested questions and whether the demo week is loaded."""
-        return {
-            "seeded": is_seeded(get_service().store),
-            "suggestions": list(SUGGESTED_QUESTIONS),
-        }
+        """Whether the demo week is loaded."""
+        return {"seeded": is_seeded(get_service().store)}
 
     @api.post("/demo/seed")
     def demo_seed() -> dict[str, Any]:

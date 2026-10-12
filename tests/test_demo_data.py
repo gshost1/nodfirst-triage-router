@@ -1,4 +1,4 @@
-"""Demo week seeding and suggested questions."""
+"""Demo week seeding."""
 
 from __future__ import annotations
 
@@ -7,13 +7,7 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from app import create_app
-from core.demo_data import (
-    APPOINTMENTS,
-    SUGGESTED_QUESTIONS,
-    THREAD,
-    is_seeded,
-    seed_demo,
-)
+from core.demo_data import APPOINTMENTS, THREAD, is_seeded, seed_demo
 from core.store import CareStore
 from tests.test_digest import service
 
@@ -37,14 +31,13 @@ def test_demo_routes(tmp_path: Path) -> None:
     api = TestClient(create_app(service=service(tmp_path)))
     before = api.get("/demo").json()
     assert before["seeded"] is False
-    assert [s["text"] for s in before["suggestions"]] == [q["text"] for q in SUGGESTED_QUESTIONS]
     assert api.post("/demo/seed").json()["seeded"] is True
     assert api.get("/demo").json()["seeded"] is True
     assert api.post("/demo/seed").json()["seeded"] is False
     assert len(api.get("/thread").json()["messages"]) == len(THREAD)
 
 
-def test_ui_has_suggestions_and_demo_seed(tmp_path: Path) -> None:
+def test_ui_has_demo_seed(tmp_path: Path) -> None:
     html = TestClient(create_app(service=service(tmp_path))).get("/").text
-    for required in ('id="suggestions"', 'id="demo-seed"', "fetch('/demo'", "fetch('/demo/seed'"):
+    for required in ('id="demo-seed"', "fetch('/demo'", "fetch('/demo/seed'"):
         assert required in html, f"the served page is missing {required}"

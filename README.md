@@ -213,7 +213,7 @@ tasks); the model never paraphrases it, so nothing in the digest is invented.
   it reports why not. No scheduler is included: a cron hitting
   `POST /digest/send` once a day is the whole "daily" part.
 
-### Demo week and suggested questions
+### Demo week
 
 **Load demo week** (left rail) fills Mom's record without a model call:
 six medication entries (today's 8 am metformin missed), four appointments
@@ -221,15 +221,10 @@ six medication entries (today's 8 am metformin missed), four appointments
 sibling tasks (Pavel drives Thursday, Anna calls the pharmacy), a twelve
 message sibling thread spread over the last day, and one acknowledged
 dizziness alert. `POST /demo/seed` is idempotent; `GET /demo` reports whether
-it has run and lists the suggested questions. Data lives in
-`core/demo_data.py`.
-
-Six **suggested question** chips sit above the composer: who is driving Mom
-today, did Mom take her metformin, what appointments this week, today's
-digest, a physio booking, and an urgent fall. One click sends the question;
-in voice mode it is spoken back. Verified live 2026-10-12 after seeding:
-"What appointments does Mom have this week?" → logistics, `glm-5.3`, 5.1 s,
-and the reply listed all four appointments with the right drivers.
+it has run. Data lives in `core/demo_data.py`. Verified live 2026-10-12
+after seeding: "What appointments does Mom have this week?" → logistics,
+`glm-5.3`, 5.1 s, and the reply listed all four appointments with the right
+drivers.
 
 ### Voice: speak to it, hear the digest
 

@@ -2,9 +2,8 @@
 
 `seed_demo(store)` fills medications, appointments, sibling tasks, a short
 sibling thread, and one acknowledged alert so the digest, the summary tools,
-and the suggested questions have something to talk about. It is idempotent:
-a second call is a no-op and reports `seeded: False`. `SUGGESTED_QUESTIONS`
-feeds the chips above the composer.
+and the summary questions have something to talk about. It is idempotent:
+a second call is a no-op and reports `seeded: False`.
 """
 
 from __future__ import annotations
@@ -69,16 +68,6 @@ ALERT = (
     "Mom felt dizzy standing up this morning and sat back down.",
     "Pavel reported dizziness; nurse advised watching Mom today.",
 )
-
-SUGGESTED_QUESTIONS: tuple[dict[str, str], ...] = (
-    {"text": "Who is driving Mom today?", "kind": "logistics"},
-    {"text": "Did Mom take her metformin today?", "kind": "routine"},
-    {"text": "What appointments does Mom have this week?", "kind": "logistics"},
-    {"text": "Give me today's digest.", "kind": "routine"},
-    {"text": "Book Mom's physio for next Tuesday, Anna drives.", "kind": "logistics"},
-    {"text": "Mom had a fall in the kitchen this morning.", "kind": "urgent"},
-)
-
 
 def _stamp(hours_ago: float) -> str:
     moment = datetime.now(UTC) - timedelta(hours=hours_ago)
