@@ -1,0 +1,287 @@
+"""One chat turn: classify, route, run the caregiver agent, record metrics.
+
+This service is the single place the API surface calls. It keeps routing,
+agent tool execution, and per-inference accounting together so `POST /chat`
+and `GET /stats` cannot drift apart.
+"""
+
+from __future__ import annotations
+
+import time
+from collections.abc import Callable, Sequence
+from dataclasses import asdict, dataclass
+from decimal import Decimal
+from typing import Any
+
+from core.agent import CaregiverAgent
+from core.metrics import (
+    COST_LABEL,
+    TIER_LARGE,
+    TIER_MID,
+    TIER_ROUTER,
+    TIER_SMALL,
+    InferenceCall,
+    StatsReport,
+    TokenUsage,
+    UsageSummary,
+    aggregate_calls,
+    as_usd,
+    build_call,
+    completion_text,
+    message_text,
+    summarize_usage,
+)
+from core.metrics_store import MetricsStore
+from core.mock_agent import mock_agent_completion
+from core.pricing import PricingTable
+from core.store import CareStore
+from core.tools import ToolAction
+from router.classify import MessageClass, TriageClassifier, model_classification_call
+from router.config import RouterConfig, RouterMode
+from router.dispatch import RouteDecision, dispatch_route
+from router.do_adapter import DORouterAdapter
+from router.execute import CompletionOutcome, RouteExecutor
+
+NOT_MEDICAL_ADVICE = (
+    "Not medical advice. If this could be an emergency, call 911 now; "
+    "otherwise contact Mom's doctor."
+)
+AGENT_MAX_COMPLETION_TOKENS = 512
+
+
+def tier_for_decision(decision: RouteDecision) -> str:
+    """Label the tier a decision targets, for per-inference stats."""
+    if decision.is_urgent:
+        return TIER_LARGE
+    if decision.mode is RouterMode.DO:
+        return TIER_ROUTER
+    if decision.message_class is MessageClass.ROUTINE:
+        return TIER_SMALL
+    return TIER_MID
+
+
+class _TurnRecorder:
+    """Collect one turn's inference calls and persist each immediately."""
+
+    def __init__(
+        self, metrics: MetricsStore, pricing: PricingTable, clock: Callable[[], float]
+    ) -> None:
+        self.metrics = metrics
+        self.pricing = pricing
+        self.clock = clock
+        self.calls: list[InferenceCall] = []
+        self.selected_route: str | None = None
+
+    def add(self, call: InferenceCall) -> InferenceCall:
+        self.calls.append(call)
+        self.metrics.record(call)
+        return call
+
+
+@dataclass(frozen=True)
+class ChatTurn:
+    """The result of one `POST /chat` turn, ready for JSON serialization."""
+
+    reply: str
+    decision: RouteDecision
+    tool_actions: list[ToolAction]
+    calls: list[InferenceCall]
+    usage: UsageSummary
+    latency_ms: float
+    estimated_cost_usd: Decimal | None
+    model: str | None
+    response_model: str | None
+    selected_route: str | None
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "reply": self.reply,
+            "message_class": self.decision.message_class.value,
+            "urgent": self.decision.is_urgent,
+            "mode": self.decision.mode.value,
+            "route": self.decision.route,
+            "model": self.model,
+            "response_model": self.response_model,
+            "selected_route": self.selected_route,
+            "reason": self.decision.reason,
+            "override_reason": self.decision.override_reason,
+            "escalation_note": self.decision.escalation_note,
+            "latency_ms": round(self.latency_ms, 3),
+            "usage": self.usage.as_dict(),
+            "estimated_cost_usd": as_usd(self.estimated_cost_usd),
+            "cost_label": COST_LABEL,
+            "calls": [call.as_dict() for call in self.calls],
+            "tool_actions": [asdict(action) for action in self.tool_actions],
+            "disclaimer": NOT_MEDICAL_ADVICE,
+        }
+
+
+class ChatService:
+    """Coordinate classification, dispatch, the agent, and metrics.
+
+    MOCK mode runs entirely offline through the agent-layer double, so the
+    demo and tests never touch a provider. Every other mode dispatches through
+    `RouteExecutor`, which keeps DO-router traffic inside the adapter.
+    """
+
+    def __init__(
+        self,
+        *,
+        client: Any,
+        config: RouterConfig,
+        store: CareStore,
+        metrics: MetricsStore,
+        pricing: PricingTable | None = None,
+        clock: Callable[[], float] = time.perf_counter,
+        mock_completion: Callable[..., Any] | None = None,
+    ) -> None:
+        self.client = client
+        self.config = config
+        self.store = store
+        self.metrics = metrics
+        self.pricing = pricing or PricingTable()
+        self.clock = clock
+        self.mock_completion = mock_completion or mock_agent_completion
+        self.executor = RouteExecutor(
+            client, DORouterAdapter.from_client(client, config.do_router_model)
+        )
+
+    @property
+    def is_mock(self) -> bool:
+        return self.config.mode is RouterMode.MOCK
+
+    def handle(self, message: str) -> ChatTurn:
+        recorder = _TurnRecorder(self.metrics, self.pricing, self.clock)
+        classifier = TriageClassifier(
+            self.client,
+            self.config,
+            classify_with=(
+                None
+                if self.is_mock
+                else lambda text: self._classify_with_metrics(recorder, text)
+            ),
+        )
+        classification = classifier.classify(message)
+        decision = dispatch_route(self.config, classification)
+        agent = CaregiverAgent(self.store, self._completion(recorder, decision))
+        result = agent.run(message, urgent=decision.is_urgent)
+
+        calls = recorder.calls
+        last = calls[-1] if calls else None
+        costs = [call.estimated_cost_usd for call in calls
+                 if call.estimated_cost_usd is not None]
+        return ChatTurn(
+            reply=result.reply,
+            decision=decision,
+            tool_actions=list(result.tool_actions),
+            calls=list(calls),
+            usage=summarize_usage(calls),
+            latency_ms=sum(call.latency_ms for call in calls),
+            estimated_cost_usd=sum(costs, Decimal(0)) if costs else None,
+            model=last.model if last else decision.model,
+            response_model=last.response_model if last else None,
+            selected_route=recorder.selected_route,
+        )
+
+    def stats(self) -> StatsReport:
+        return aggregate_calls(
+            self.metrics.calls(), self.pricing, self.config.large_model or None
+        )
+
+    # -- inference plumbing -------------------------------------------------
+
+    def _classify_with_metrics(
+        self, recorder: _TurnRecorder, message: str
+    ) -> MessageClass:
+        start = self.clock()
+        call = model_classification_call(self.client, self.config, message)
+        latency_ms = (self.clock() - start) * 1000.0
+        recorder.add(
+            build_call(
+                tier=TIER_SMALL,
+                route="classifier",
+                requested_model=self.config.small_model,
+                response_model=_reported_model(call.completion),
+                latency_ms=latency_ms,
+                usage=TokenUsage.from_completion(call.completion),
+                pricing=self.pricing,
+            )
+        )
+        return call.message_class
+
+    def _completion(
+        self, recorder: _TurnRecorder, decision: RouteDecision
+    ) -> Callable[..., Any]:
+        tier = tier_for_decision(decision)
+
+        if self.is_mock:
+            def complete(
+                *,
+                messages: Sequence[Any],
+                max_completion_tokens: int = AGENT_MAX_COMPLETION_TOKENS,
+                **_kwargs: Any,
+            ) -> CompletionOutcome:
+                start = self.clock()
+                completion = self.mock_completion(
+                    messages=messages, model=decision.model
+                )
+                latency_ms = (self.clock() - start) * 1000.0
+                recorder.add(
+                    build_call(
+                        tier=tier,
+                        route=decision.route,
+                        requested_model=decision.model,
+                        response_model=None,
+                        latency_ms=latency_ms,
+                        usage=TokenUsage.estimate(
+                            message_text(messages), completion_text(completion)
+                        ),
+                        pricing=self.pricing,
+                    )
+                )
+                return CompletionOutcome(
+                    decision=decision,
+                    completion=completion,
+                    response_model=None,
+                    selected_route=None,
+                )
+
+            return complete
+
+        def routed(
+            *,
+            messages: Sequence[Any],
+            tools: Sequence[Any] | None = None,
+            tool_choice: Any = None,
+            max_completion_tokens: int = AGENT_MAX_COMPLETION_TOKENS,
+        ) -> CompletionOutcome:
+            start = self.clock()
+            outcome = self.executor.execute(
+                decision,
+                messages,
+                tools=tools,
+                tool_choice=tool_choice,
+                max_completion_tokens=max_completion_tokens,
+            )
+            latency_ms = (self.clock() - start) * 1000.0
+            recorder.add(
+                build_call(
+                    tier=tier,
+                    route=decision.route,
+                    requested_model=decision.model,
+                    response_model=outcome.response_model,
+                    latency_ms=latency_ms,
+                    usage=TokenUsage.from_completion(outcome.completion),
+                    pricing=self.pricing,
+                )
+            )
+            if outcome.selected_route is not None:
+                recorder.selected_route = outcome.selected_route
+            return outcome
+
+        return routed
+
+
+def _reported_model(completion: Any) -> str | None:
+    model = getattr(completion, "model", None)
+    return model if isinstance(model, str) else None

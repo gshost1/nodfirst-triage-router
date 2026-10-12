@@ -60,18 +60,22 @@ class DORouterAdapter:
         self,
         messages: Sequence[Any],
         *,
+        tools: Sequence[Any] | None = None,
+        tool_choice: Any = None,
         max_completion_tokens: int = DEFAULT_MAX_COMPLETION_TOKENS,
     ) -> RouterDispatch:
         """Request a router completion and retain the available metadata.
 
         The actual serving model comes from the response body when present and
         the router's selected route from its response header when present;
-        unavailable values stay None and are never invented.
+        unavailable values stay None and are never invented. Optional agent
+        arguments are forwarded only when the caller supplies them.
         """
         raw = self._complete_raw(
             messages=messages,
             model=self._router_model,
             max_completion_tokens=max_completion_tokens,
+            **_forwarded(tools=tools, tool_choice=tool_choice),
         )
         model = getattr(raw.completion, "model", None)
         return RouterDispatch(
@@ -80,3 +84,8 @@ class DORouterAdapter:
             response_model=model if isinstance(model, str) else None,
             selected_route=selected_route_header(raw.headers),
         )
+
+
+def _forwarded(**kwargs: Any) -> dict[str, Any]:
+    """Drop unset agent arguments so existing router callers keep working."""
+    return {name: value for name, value in kwargs.items() if value is not None}

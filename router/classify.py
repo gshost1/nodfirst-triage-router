@@ -167,10 +167,22 @@ def parse_message_class(content: str) -> MessageClass | None:
 ModelClassifyFn = Callable[[str], MessageClass]
 
 
-def model_classify(
+@dataclass(frozen=True)
+class ClassifierCall:
+    """One classifier inference call: the class plus the raw completion.
+
+    The completion is retained so the API layer can record the reported model
+    and token usage for this call without re-issuing it.
+    """
+
+    message_class: MessageClass
+    completion: object
+
+
+def model_classification_call(
     client: LLMClient, config: RouterConfig, message: str
-) -> MessageClass:
-    """Classify with the configured small-tier model.
+) -> ClassifierCall:
+    """Classify with the configured small-tier model and keep the completion.
 
     An unparseable response falls back to logistics: the mid class keeps the
     request on a stronger model without escalating every ambiguous message to
@@ -189,7 +201,16 @@ def model_classify(
     except (AttributeError, IndexError, TypeError):
         content = ""
     parsed = parse_message_class(content)
-    return MessageClass.LOGISTICS if parsed is None else parsed
+    return ClassifierCall(
+        MessageClass.LOGISTICS if parsed is None else parsed, completion
+    )
+
+
+def model_classify(
+    client: LLMClient, config: RouterConfig, message: str
+) -> MessageClass:
+    """Classify with the configured small-tier model."""
+    return model_classification_call(client, config, message).message_class
 
 
 class TriageClassifier:

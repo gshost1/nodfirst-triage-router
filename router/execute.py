@@ -32,7 +32,9 @@ class RouteExecutor:
 
     DO-mode routine/logistics decisions go through the DO router adapter;
     every other decision — and every urgent decision in every mode — goes
-    directly to the selected model and never touches a router boundary.
+    directly to the selected model and never touches a router boundary. The
+    agent's optional `tools`/`tool_choice` arguments are forwarded only when
+    the caller supplies them.
     """
 
     def __init__(self, client: LLMClient, adapter: DORouterAdapter) -> None:
@@ -44,11 +46,16 @@ class RouteExecutor:
         decision: RouteDecision,
         messages: Sequence[Any],
         *,
+        tools: Sequence[Any] | None = None,
+        tool_choice: Any = None,
         max_completion_tokens: int = DEFAULT_MAX_COMPLETION_TOKENS,
     ) -> CompletionOutcome:
+        forwarded = _forwarded(tools=tools, tool_choice=tool_choice)
         if decision.mode is RouterMode.DO and not decision.is_urgent:
             dispatched = self._adapter.dispatch(
-                messages, max_completion_tokens=max_completion_tokens
+                messages,
+                max_completion_tokens=max_completion_tokens,
+                **forwarded,
             )
             return CompletionOutcome(
                 decision=decision,
@@ -61,6 +68,7 @@ class RouteExecutor:
             messages=messages,
             model=decision.model,
             max_completion_tokens=max_completion_tokens,
+            **forwarded,
         )
         model = getattr(raw.completion, "model", None)
         return CompletionOutcome(
@@ -69,3 +77,8 @@ class RouteExecutor:
             response_model=model if isinstance(model, str) else None,
             selected_route=None,
         )
+
+
+def _forwarded(**kwargs: Any) -> dict[str, Any]:
+    """Drop unset agent arguments so existing callers keep their signature."""
+    return {name: value for name, value in kwargs.items() if value is not None}

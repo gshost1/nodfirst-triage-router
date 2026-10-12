@@ -18,9 +18,11 @@ non-diagnostic 911/doctor guidance.
 from router.classify import (
     URGENT_KEYWORD_CATEGORIES,
     ClassificationResult,
+    ClassifierCall,
     MessageClass,
     TriageClassifier,
     keyword_classify,
+    model_classification_call,
     model_classify,
     urgent_keyword_category,
 )
@@ -50,6 +52,7 @@ __all__ = [
     "URGENT_ESCALATION_NOTE",
     "URGENT_KEYWORD_CATEGORIES",
     "ClassificationResult",
+    "ClassifierCall",
     "CompletionOutcome",
     "DORouterAdapter",
     "MessageClass",
@@ -62,6 +65,7 @@ __all__ = [
     "TriageClassifier",
     "dispatch_route",
     "keyword_classify",
+    "model_classification_call",
     "model_classify",
     "urgent_keyword_category",
 ]
