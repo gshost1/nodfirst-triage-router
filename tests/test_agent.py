@@ -263,20 +263,20 @@ def test_empty_summary_has_no_invented_records(store: CareStore) -> None:
     assert "Aspirin" not in result.reply
 
 
-def test_urgent_reply_is_never_replaced_by_a_summary_tool_result(tmp_path: Path) -> None:
-    """Live models sometimes call summarize_day unprompted; urgent replies must survive."""
+def test_urgent_turns_offer_no_tools_and_keep_the_escalation_reply(tmp_path: Path) -> None:
+    """Live qwen3.8-max reached for get_parent_summary on 'Mom had a fall'."""
     store = CareStore(tmp_path / "u.sqlite3")
-    replies = Replies(
-        completion(calls=[tool("summarize_day")]),
-        completion("Please call 911 now, then let Anna and Pavel know."),
-    )
+    before = store.snapshot()
+    replies = Replies(completion("Please call 911 now, then let Anna and Pavel know."))
 
     result = CaregiverAgent(store, replies).run("Mom had a fall", urgent=True)
 
-    assert [a.name for a in result.tool_actions] == ["summarize_day"]
+    assert "tools" not in replies.requests[0]
+    assert result.tool_actions == []
     assert result.reply.startswith("Please call 911 now")
-    assert "Daily digest" not in result.reply
+    assert store.snapshot() == before
     assert "only when the user asks for a" in SYSTEM_PROMPT
+    assert "do not ask for the time" in SYSTEM_PROMPT
 
 
 def test_empty_model_reply_gets_an_honest_fallback(tmp_path: Path) -> None:

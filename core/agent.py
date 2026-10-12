@@ -24,7 +24,9 @@ SYSTEM_PROMPT = (
     "call 911 now; otherwise contact a doctor promptly. "
     "Only record values the user requested, and never claim an action succeeded "
     "until its tool result confirms it. Preserve relative dates such as Thursday "
-    "rather than inventing a calendar date. Use only the five supplied tools. "
+    "rather than inventing a calendar date: if only a day is given, record the "
+    "appointment with that day as the datetime and do not ask for the time. "
+    "Use only the five supplied tools. "
     "Call get_parent_summary or summarize_day only when the user asks for a "
     "summary, update, or digest; never for an urgent message, a check-in, or a "
     "request to record something. "
@@ -95,16 +97,25 @@ class CaregiverAgent:
             "role": "user",
             "content": f"{sender}: {message}" if sender else message,
         })
-        initial = self.complete(
-            messages=messages, tools=TOOL_SCHEMAS, tool_choice="auto",
-            max_completion_tokens=512,
-        )
+        # An urgent turn gets no tools: the reply must be the escalation, not a
+        # record lookup (live qwen3.8-max otherwise calls get_parent_summary
+        # first and can come back with no text at all).
+        if urgent:
+            initial = self.complete(messages=messages, max_completion_tokens=512)
+        else:
+            initial = self.complete(
+                messages=messages, tools=TOOL_SCHEMAS, tool_choice="auto",
+                max_completion_tokens=512,
+            )
         completions = [initial]
         response = getattr(initial, "completion", initial)
         assistant = response.choices[0].message
         text = assistant.content or ""
         calls = getattr(assistant, "tool_calls", None)
-        requests = native_requests(calls) if calls else json_requests(text)
+        if urgent:
+            calls, requests = None, []
+        else:
+            requests = native_requests(calls) if calls else json_requests(text)
         actions = [execute_tool(self.store, request) for request in requests]
         if actions:
             if calls:
