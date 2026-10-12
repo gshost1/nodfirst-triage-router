@@ -1045,7 +1045,9 @@
             var heard = composerInput.value.trim();
             composerInput.value = '';
             if (voiceMode) {
-              voiceTurn(heard);
+              if (!voiceBusy) {
+                voiceTurn(heard);
+              }
               return;
             }
             if (heard) {
@@ -1094,6 +1096,7 @@
           'audio-capture': 'No microphone found. Type below; replies are still spoken aloud.'
         };
         var recognitionBroken = null;
+        var voiceBusy = false; // a turn is thinking or speaking: ignore recognizer restarts
         window.__voiceLog = window.__voiceLog || [];
 
         function setVoiceState(state, text) {
@@ -1340,6 +1343,7 @@
             startListening();
             return;
           }
+          voiceBusy = true;
           setVoiceState('thinking', 'Heard “' + heard + '”. Thinking…');
           composerInput.value = '';
           var reveal = function (turn) {
@@ -1358,6 +1362,7 @@
               reveal(turn);
             }).then(function () { reveal(turn); });
           }).then(function () {
+            voiceBusy = false;
             if (voiceMode) {
               setTimeout(startListening, 250);
             }
@@ -1366,6 +1371,7 @@
 
         function stopVoiceMode() {
           voiceMode = false;
+          voiceBusy = false;
           try { recognizer && recognizer.abort(); } catch (error) { /* already stopped */ }
           if (window.speechSynthesis) { window.speechSynthesis.cancel(); }
           stopWaitTimer();

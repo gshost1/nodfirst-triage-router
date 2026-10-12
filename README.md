@@ -248,9 +248,18 @@ whole summary (verified live 2026-10-12: "the only driving I have on record is
 Pavel taking Mom to cardiology on Thursday"). The store-text override now
 applies only when you ask for a summary, digest, or recap.
 
-Timing on DigitalOcean: 3 to 6 s for the answer plus 5 to 17 s for the cloud
-voice, so a voice turn is roughly 10 to 20 s. Choose **Browser voice** for an
-instant reply when the cloud voice is too slow for the room.
+Timing on DigitalOcean: 3 to 6 s for the answer, then the first sentence of
+the cloud voice lands 3 to 8 s later. The voice model takes about 0.08 s per
+character and does not stream (measured 2026-10-12: 33 chars 3.5 s, 123 chars
+10 s, 235 chars 20 s, first byte with the last), so the page splits the reply
+into sentences, requests them all at once through `POST /speak`, and plays
+them in order as they arrive; voice replies are also capped at two short
+sentences. Verified live after the change: answer 6 s, first sound 6.5 s
+later, two clips (5.3 s and 4.2 s) back to back with no gap. Before the
+change the same turns waited 11 to 15.6 s for one long clip. **Read digest
+aloud** uses the same path, so the whole digest is read, not the first 320
+characters. Choose **Browser voice** for an instant reply when even that is
+too slow for the room.
 
 Browser notes (found live 2026-10-12 in a Chromium build without Google's
 speech service): speech recognition fails with `network` on every start, and
@@ -372,6 +381,8 @@ the clip, "clip" is how long it played.
 | 1 | Who is driving Mom today? | logistics | `glm-5.3` | 6 s | 13 s | 10 s | built-in browser pane |
 | 2 | Who is driving Mom today? (typed in voice mode) | logistics | `glm-5.3` | 2.5 s | 11 s | 8.6 s | Chromium build (ego lite) |
 | 3 | Did Mom take her metformin today? (typed in voice mode) | logistics | `glm-5.3` | 5 s | 15.6 s | about 9 s | Chromium build (ego lite) |
+| 4 | Who is driving Mom today? (typed, parallel sentences) | logistics | `glm-5.3` | 4 s | 5.3 s to first sound | 2 parts | Chromium build (ego lite) |
+| 5 | Did Mom take her metformin today? (typed, parallel sentences) | logistics | `glm-5.3` | 6 s | 6.5 s to first sound | 5.3 s + 4.2 s, no gap | Chromium build (ego lite) |
 
 Replies stayed grounded: "the only driving task on file is Pavel taking Mom to
 cardiology on Thursday" and "I don't have any medication recorded". Turn 3
