@@ -1,7 +1,7 @@
 """Demo data for Mom's care record: a realistic week, no model calls.
 
 `seed_demo(store)` fills medications, appointments, sibling tasks, a short
-sibling thread, and one acknowledged alert so the digest, the summary tools,
+sibling thread, and one open urgent alert so the digest, the summary tools,
 and the summary questions have something to talk about. It is idempotent:
 a second call is a no-op and reports `seeded: False`.
 """
@@ -29,11 +29,17 @@ APPOINTMENTS: tuple[tuple[str, str], ...] = (
     ("Eye exam, new reading glasses", "October 24, 11:00 am"),
 )
 
+# All open at the start of the demo: the family assigns them in the chat.
 SIBLING_TASKS: tuple[tuple[str, str], ...] = (
-    ("Pavel", "Drive Mom to cardiology on Thursday"),
-    ("Anna", "Call the pharmacy about the Friday refill"),
-    ("Anna", "Visit Saturday and check the bathroom grab bar"),
-    ("Pavel", "Replace the kitchen night light"),
+    ("unassigned", "Drive Mom to cardiology on Thursday at 10:30 am"),
+    ("unassigned", "Call the pharmacy to confirm Friday's refill delivery"),
+    ("unassigned", "Take Mom to physiotherapy next Tuesday at 2 pm"),
+    ("unassigned", "Drive Mom to the eye exam on October 24"),
+    ("unassigned", "Weekend visit and check the bathroom grab bar"),
+    ("unassigned", "Replace the kitchen night light"),
+    ("unassigned", "Groceries and Sunday meal prep"),
+    ("unassigned", "Sort the weekly pill organizer on Sunday evening"),
+    ("unassigned", "Call Mom every evening this week"),
 )
 
 URGENT_REPLY = (
@@ -45,13 +51,13 @@ URGENT_REPLY = (
 THREAD: tuple[tuple[str, str, str, str], ...] = (
     ("Anna", "user", "Mom had her metformin and lisinopril at 8 this morning, both taken.", "routine"),
     ("assistant", "assistant", "Recorded: metformin and lisinopril taken at 8 am. Thanks, Anna.", "routine"),
-    ("Pavel", "user", "Book Mom's cardiology follow-up for Thursday, I will drive.", "logistics"),
+    ("Pavel", "user", "Book Mom's cardiology follow-up for Thursday, we still need a driver.", "logistics"),
     ("assistant", "assistant",
-     "Booked the cardiology follow-up for Thursday 10:30 am and noted Pavel as the driver.",
+     "Booked the cardiology follow-up for Thursday 10:30 am. Driving Mom there is an open task.",
      "logistics"),
     ("Anna", "user", "Can you schedule the pharmacy refill delivery for Friday?", "logistics"),
     ("assistant", "assistant",
-     "Added the pharmacy refill delivery for Friday afternoon. I also noted you will call them.",
+     "Added the pharmacy refill delivery for Friday afternoon. Confirming it with the pharmacy is an open task.",
      "logistics"),
     ("Pavel", "user", "Mom felt dizzy standing up this morning and sat back down.", "urgent"),
     ("assistant", "assistant", URGENT_REPLY, "urgent"),
@@ -104,7 +110,8 @@ def seed_demo(store: CareStore) -> dict[str, Any]:
         hours -= 1.5
     alert = store.add_alert(*ALERT)
     _backdate("alerts", store, alert["id"], _stamp(12.0))
-    store.acknowledge_alert(alert["id"])
+    # Left open on purpose so the red card and "Acknowledge" are part of the demo.
+    store.record_alert_email(alert["id"], "skipped", "seeded demo data, no email sent", [])
     return {
         "seeded": True,
         "medications": len(MEDICATIONS),

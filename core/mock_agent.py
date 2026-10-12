@@ -32,6 +32,11 @@ def mock_agent_completion(
                 "sibling": "Pavel", "task": "Drive Mom to cardiology on Thursday",
             }},
         ]) + "\n```"
+    elif "email" in text.lower() and "digest" in text.lower():
+        reply = '```json\n{"name":"email_digest","arguments":{}}\n```'
+    elif "email" in text.lower():
+        reply = ('```json\n{"name":"email_siblings","arguments":{"subject":"Note from '
+                 'the thread","body":"' + text.replace('"', "'") + '"}}\n```')
     elif "digest" in text.lower():
         reply = '```json\n{"name":"summarize_day","arguments":{}}\n```'
     elif "summary" in text.lower() or "summarize" in text.lower():

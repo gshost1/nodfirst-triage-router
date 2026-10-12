@@ -209,7 +209,9 @@ class ChatService:
         )
         classification = classifier.classify(message)
         decision = dispatch_route(self.config, classification)
-        agent = CaregiverAgent(self.store, self._completion(recorder, decision))
+        agent = CaregiverAgent(
+            self.store, self._completion(recorder, decision), notifier=self.notifier
+        )
         try:
             result = agent.run(
                 message, urgent=decision.is_urgent, sender=sender, history=history,
@@ -223,7 +225,13 @@ class ChatService:
 
         message_class = decision.message_class.value
         self.store.add_message(sender, "user", message, message_class)
-        self.store.add_message("assistant", "assistant", result.reply, message_class)
+        calls = recorder.calls
+        last = calls[-1] if calls else None
+        served = (last.response_model or last.model) if last else decision.model
+        self.store.add_message(
+            "assistant", "assistant", result.reply, message_class,
+            model=served, route=decision.route,
+        )
         alert = None
         if decision.is_urgent:
             alert = self.store.add_alert(
@@ -239,8 +247,6 @@ class ChatService:
                 email_recipients=list(sent.recipients),
             )
 
-        calls = recorder.calls
-        last = calls[-1] if calls else None
         costs = [call.estimated_cost_usd for call in calls
                  if call.estimated_cost_usd is not None]
         return ChatTurn(

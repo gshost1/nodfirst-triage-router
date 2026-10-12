@@ -2,10 +2,21 @@
 
 from __future__ import annotations
 
+import re
 import sqlite3
 from contextlib import closing
 from pathlib import Path
 from typing import Any
+
+UNASSIGNED = "unassigned"
+_STOPWORDS = frozenset(
+    ["the", "a", "an", "to", "for", "of", "on", "at", "in", "and", "or", "with", "her", "his", "mom", "mom's", "moms", "this", "that", "next", "week", "weekly", "every", "please", "take", "bring", "go", "get"]
+)
+
+
+def _keywords(text: str) -> set[str]:
+    words = re.findall(r"[a-z0-9]+", text.lower())
+    return {w for w in words if len(w) > 2 and w not in _STOPWORDS}
 
 
 class CareStore:
@@ -50,6 +61,12 @@ class CareStore:
                 INSERT OR IGNORE INTO parent VALUES (1, 'Ludmila', 'Mom', 81);
                 INSERT OR IGNORE INTO siblings VALUES ('Anna'), ('Pavel');
             """)
+            for column in ("model", "route"):
+                try:
+                    with db:
+                        db.execute(f"ALTER TABLE messages ADD COLUMN {column} TEXT")
+                except sqlite3.OperationalError:
+                    pass  # column already there
 
     def _connect(self) -> sqlite3.Connection:
         db = sqlite3.connect(self.path)
@@ -81,24 +98,65 @@ class CareStore:
         return {"id": identifier, "title": title, "datetime": datetime}
 
     def assign_sibling_task(self, sibling: str, task: str) -> dict[str, Any]:
+        """Record a task for a sibling; an open ('unassigned') task with the
+        same gist is claimed rather than duplicated."""
+        match = self._open_task_matching(task)
+        if match is not None and sibling.strip().lower() != UNASSIGNED:
+            db = self._connect()
+            try:
+                with db:
+                    db.execute(
+                        "UPDATE sibling_tasks SET sibling = ? WHERE id = ?",
+                        (sibling, match["id"]),
+                    )
+            finally:
+                db.close()
+            return {"id": match["id"], "sibling": sibling, "task": match["task"],
+                    "claimed_open_task": True}
         identifier = self._insert(
             "INSERT INTO sibling_tasks (sibling, task) VALUES (?, ?)",
             (sibling, task),
         )
         return {"id": identifier, "sibling": sibling, "task": task}
 
+    def open_tasks(self) -> list[dict[str, Any]]:
+        db = self._connect()
+        try:
+            return [dict(r) for r in db.execute(
+                "SELECT * FROM sibling_tasks WHERE lower(sibling) = ? ORDER BY id",
+                (UNASSIGNED,),
+            )]
+        finally:
+            db.close()
+
+    def _open_task_matching(self, task: str) -> dict[str, Any] | None:
+        wanted = _keywords(task)
+        if not wanted:
+            return None
+        best: tuple[float, dict[str, Any]] | None = None
+        for row in self.open_tasks():
+            have = _keywords(row["task"])
+            if not have:
+                continue
+            overlap = len(wanted & have) / min(len(wanted), len(have))
+            if overlap >= 0.5 and (best is None or overlap > best[0]):
+                best = (overlap, row)
+        return best[1] if best else None
+
     # -- shared sibling thread ------------------------------------------------
 
     def add_message(
-        self, sender: str, role: str, content: str, message_class: str | None = None
+        self, sender: str, role: str, content: str, message_class: str | None = None,
+        model: str | None = None, route: str | None = None,
     ) -> dict[str, Any]:
         identifier = self._insert(
-            "INSERT INTO messages (sender, role, content, message_class) "
-            "VALUES (?, ?, ?, ?)",
-            (sender, role, content, message_class),
+            "INSERT INTO messages (sender, role, content, message_class, model, route) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (sender, role, content, message_class, model, route),
         )
         return {"id": identifier, "sender": sender, "role": role,
-                "content": content, "message_class": message_class}
+                "content": content, "message_class": message_class,
+                "model": model, "route": route}
 
     def recent_messages(self, limit: int = 20) -> list[dict[str, Any]]:
         """The last `limit` thread messages in chronological order."""

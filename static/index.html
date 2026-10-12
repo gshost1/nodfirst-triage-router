@@ -135,6 +135,10 @@
       .bubble { min-width: 0; }
       .message .who { margin: 0 0 4px; font-size: 11.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); }
       .message.user .who { text-align: right; }
+      .model-chip { display: inline-block; margin-left: 8px; padding: 2px 9px; border-radius: 999px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; font-weight: 700; letter-spacing: 0; text-transform: none; background: var(--brand-soft); color: var(--brand); border: 1px solid var(--line-strong); vertical-align: middle; }
+      .model-chip-urgent { background: #fdecec; color: var(--urgent); border-color: #f1b2b2; }
+      .model-chip-logistics { background: #e8f0fb; color: var(--logistics); border-color: #bcd0ee; }
+      .model-chip-routine { background: #e9f7ee; color: var(--routine); border-color: #b9e2c6; }
       .message .text { margin: 0; padding: 14px 18px; border-radius: 20px; white-space: pre-wrap; font-size: 16.5px; line-height: 1.55; background: #fff; border: 1px solid var(--line); border-bottom-left-radius: 6px; }
       .message.user .text { background: var(--brand-2); color: #fff; border-color: var(--brand-2); border-bottom-left-radius: 20px; border-bottom-right-radius: 6px; }
       .message.assistant[data-message-class="urgent"] .text { border-color: var(--urgent-line); }
@@ -456,6 +460,14 @@
           return value.toFixed(1) + ' ms';
         }
 
+        function modelChip(model, messageClass) {
+          var chip = document.createElement('span');
+          chip.className = 'model-chip model-chip-' + (messageClass || 'routine');
+          chip.textContent = model;
+          chip.title = 'Model that answered';
+          return chip;
+        }
+
         function modelOf(turn) {
           if (turn.model) {
             return { text: turn.model, source: 'requested' };
@@ -558,6 +570,7 @@
           var who = document.createElement('p');
           who.className = 'who';
           who.textContent = 'Caregiver assistant';
+          who.appendChild(modelChip(model.text, turn.message_class));
           bubble.appendChild(who);
 
           var text = document.createElement('p');
@@ -696,7 +709,8 @@
           var who = document.createElement('p');
           who.className = 'who';
           who.textContent = 'Caregiver assistant' +
-            (entry.message_class ? ' · ' + entry.message_class + ' route (earlier)' : '');
+            (entry.message_class ? ' · ' + entry.message_class + ' route' : '');
+          if (entry.model) { who.appendChild(modelChip(entry.model, entry.message_class)); }
           var text = document.createElement('p');
           text.className = 'text';
           text.textContent = entry.content;

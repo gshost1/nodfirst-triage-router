@@ -55,6 +55,9 @@ class NullNotifier:
     def send_digest(self, digest: dict[str, Any]) -> Notification:
         return Notification(STATUS_DISABLED, [], self.reason)
 
+    def send_note(self, subject: str, body: str) -> Notification:
+        return Notification(STATUS_DISABLED, [], self.reason)
+
 
 class BotmailNotifier:
     """Email each urgent alert to the sibling group through Botmail."""
@@ -88,6 +91,15 @@ class BotmailNotifier:
             subject="Daily digest about Mom",
             text=digest["summary"] + "\n\nNot medical advice. "
             f"Open the shared thread: {self.app_url}\n",
+            idempotency_key=None,
+        )
+
+    def send_note(self, subject: str, body: str) -> Notification:
+        """A short note from the assistant to the siblings, asked for in chat."""
+        return self._send(
+            subject=f"About Mom: {subject.strip()[:80] or 'a note from the thread'}",
+            text=body.strip() + "\n\nSent from the shared caregiving thread. "
+            f"Not medical advice. {self.app_url}\n",
             idempotency_key=None,
         )
 

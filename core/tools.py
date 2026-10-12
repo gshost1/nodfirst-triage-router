@@ -1,4 +1,4 @@
-"""The five approved tool schemas and strict argument parsing."""
+"""The seven approved tool schemas and strict argument parsing."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
+from core.notify import BotmailNotifier, NullNotifier
 from core.store import CareStore
 
 TOOL_PARAMETERS: dict[str, dict[str, str]] = {
@@ -16,6 +17,8 @@ TOOL_PARAMETERS: dict[str, dict[str, str]] = {
     "assign_sibling_task": {"sibling": "string", "task": "string"},
     "get_parent_summary": {},
     "summarize_day": {},
+    "email_digest": {},
+    "email_siblings": {"subject": "string", "body": "string"},
 }
 TOOL_DESCRIPTIONS = {
     "log_med": "Record a medication as taken or missed, at the requested time.",
@@ -25,6 +28,15 @@ TOOL_DESCRIPTIONS = {
     "summarize_day": (
         "Build the daily digest for the siblings: last 24 hours of thread "
         "activity, urgent alerts, and everything recorded for Mom."
+    ),
+    "email_digest": (
+        "Email today's digest to the siblings' configured addresses. Use only "
+        "when the user asks to send, email, or share the digest."
+    ),
+    "email_siblings": (
+        "Email a short note to the siblings' configured addresses. Use only "
+        "when the user asks to email, message, or tell the siblings something; "
+        "put the user's request in the body in plain words."
     ),
 }
 TOOL_SCHEMAS = [
@@ -118,14 +130,29 @@ def json_requests(content: str) -> list[ToolRequest]:
     return []
 
 
-def execute_tool(store: CareStore, request: ToolRequest) -> ToolAction:
+def execute_tool(
+    store: CareStore,
+    request: ToolRequest,
+    notifier: BotmailNotifier | NullNotifier | None = None,
+) -> ToolAction:
     # Dispatch only through the validated allowlist, never model-selected attributes.
+    mail = notifier or NullNotifier()
+
+    def email_digest() -> dict[str, Any]:
+        digest = store.daily_digest()
+        return {"email": mail.send_digest(digest).as_dict(), "summary": digest["summary"]}
+
+    def email_siblings(subject: str, body: str) -> dict[str, Any]:
+        return {"email": mail.send_note(subject, body).as_dict()}
+
     handlers: dict[str, Callable[..., dict[str, Any]]] = {
         "log_med": store.log_med,
         "add_appointment": store.add_appointment,
         "assign_sibling_task": store.assign_sibling_task,
         "get_parent_summary": store.get_parent_summary,
         "summarize_day": store.daily_digest,
+        "email_digest": email_digest,
+        "email_siblings": email_siblings,
     }
     result = handlers[request.name](**request.arguments)
     return ToolAction(request.name, request.arguments, result)

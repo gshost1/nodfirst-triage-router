@@ -27,7 +27,14 @@ SYSTEM_PROMPT = (
     "until its tool result confirms it. Preserve relative dates such as Thursday "
     "rather than inventing a calendar date: if only a day is given, record the "
     "appointment with that day as the datetime and do not ask for the time. "
-    "Use only the five supplied tools. "
+    "Sibling tasks recorded under 'unassigned' are open; when the user assigns "
+    "one (for example 'Pavel takes the cardiology drive'), call "
+    "assign_sibling_task with the sibling's name and that task's wording, and "
+    "it claims the open task. "
+    "Use only the seven supplied tools. Email tools (email_digest, "
+    "email_siblings) only when the user asks to send or email something; "
+    "report the email status from the tool result, and if it says disabled "
+    "or failed, say the email did not go out. "
     "Call get_parent_summary or summarize_day only when the user asks for a "
     "summary, update, or digest, or asks a question about recorded medications, "
     "appointments, or sibling tasks (for example who is driving Mom); never for an "
@@ -95,9 +102,15 @@ class CaregiverAgent:
     Every invocation is retained in AgentResult.completions for the API.
     """
 
-    def __init__(self, store: CareStore, complete: Callable[..., Any]) -> None:
+    def __init__(
+        self,
+        store: CareStore,
+        complete: Callable[..., Any],
+        notifier: Any = None,
+    ) -> None:
         self.store = store
         self.complete = complete
+        self.notifier = notifier
 
     def run(
         self,
@@ -152,7 +165,7 @@ class CaregiverAgent:
             calls, requests = None, []
         else:
             requests = native_requests(calls) if calls else json_requests(text)
-        actions = [execute_tool(self.store, request) for request in requests]
+        actions = [execute_tool(self.store, request, self.notifier) for request in requests]
         if actions:
             if calls:
                 # Keep the original native calls so tool_call_id references match.
@@ -198,7 +211,8 @@ class CaregiverAgent:
             # answered with a digest, even if the model called a summary tool.
             summaries = [a.result["summary"] for a in actions
                          if a.name in GROUNDED_SUMMARY_TOOLS]
-            if summaries and not urgent and SUMMARY_REQUEST.search(message):
+            emailed = any(action.name.startswith("email_") for action in actions)
+            if summaries and not urgent and not emailed and SUMMARY_REQUEST.search(message):
                 text = "\n".join(summaries)
         if not text.strip():
             text = EMPTY_REPLY_FALLBACK
