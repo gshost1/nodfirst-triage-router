@@ -25,6 +25,7 @@ store, and an optional DigitalOcean Inference Router path.
 | DigitalOcean model list (`GET /v1/models`) | Verified 2026-10-12: HTTP 200, 82 model IDs, no Nous Hermes model, no speech-to-text model (`qwen3-tts-voicedesign` is text-to-speech only) |
 | `nodfirst` Inference Router created in the DO Control Panel | **Done** (2026-10-12): routine -> `glm-5.3-flash`, logistics -> `glm-5.3`, urgent-health -> `qwen3.8-max`, fallback `glm-5.3-flash` |
 | Full chat flow in `ROUTER_MODE=do` | **Verified 2026-10-12, latest run clean** (see "Live rehearsal results" below): all five scripted messages classified as expected, both urgent messages served by `qwen3.8-max` via the direct-large bypass, routine/logistics served by `glm-5.3-flash`/`glm-5.3` through `router:nodfirst`, every turn under 4 s, 12 calls, estimated spend $0.006 |
+| Urgent reply said the 911 line twice | Fixed 2026-10-12: the model got the escalation note in its prompt and echoed it, then the app appended it again (seen live, 5 voice clips). The model now gets a brief that says the app adds the guidance; the app skips its note if the reply already says 911; voice turns get a shorter note. Verified live on `qwen3.8-max`: one 911 line in text (321 chars) and voice (192 chars) |
 | Live bugs found and fixed during rehearsal | Thinking tiers returned empty text until `reasoning_effort=none`; summary tools overrode urgent replies; `qwen3.8-max` called a lookup tool on "Mom had a fall"; `glm-5.3` asked for a time instead of booking. All fixed and re-verified live |
 | DigitalOcean text-to-speech (`qwen3-tts-voicedesign`) | Verified 2026-10-12: `POST /digest/speak` returned a 26 s WAV through the app; inputs over ~400 chars timed out, so the digest is capped at 320 |
 | Voice mode (spoken conversation) | **Verified live 2026-10-12** in two browsers (see "Voice mode results" below): typed or spoken question -> logistics route -> cloud voice reply played to the end; 8.6 s and 15.6 s clip generation; a Chromium build without speech recognition falls back to typed questions with spoken replies |
@@ -520,7 +521,7 @@ uv run mypy app.py core router scripts
 uv run ruff check .
 ```
 
-136 tests as of 2026-10-12. Every test runs in MOCK mode with temporary
+137 tests as of 2026-10-12. Every test runs in MOCK mode with temporary
 SQLite files; no test issues a provider request. `tests/test_demo.py` covers the five-message mix, the offline
 guarantee, and consistency with the UI replay script.
 

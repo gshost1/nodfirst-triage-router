@@ -317,3 +317,19 @@ def test_question_about_records_keeps_the_models_answer(tmp_path: Path) -> None:
     )
     summary = CaregiverAgent(store, asked).run("Give me a summary of Mom")
     assert summary.reply.startswith("Here's the recorded update for Mom")
+
+
+def test_urgent_reply_carries_the_911_guidance_once(tmp_path: Path) -> None:
+    """Live 2026-10-12: the model echoed the note and the app appended it again."""
+    store = CareStore(tmp_path / "once.sqlite3")
+    said_it = Replies(completion("If this could be an emergency, call 911 now."))
+    result = CaregiverAgent(store, said_it).run("Mom had a fall", urgent=True)
+    assert result.reply.count("911") == 1
+    prompt = said_it.requests[0]["messages"][0]["content"]
+    assert "do not give that guidance yourself" in prompt
+    assert prompt.rstrip().endswith("tell the siblings).")
+
+    quiet = Replies(completion("Oh no. Stay with her and keep the phone nearby."))
+    result = CaregiverAgent(store, quiet).run("Mom had a fall", urgent=True, voice=True)
+    assert result.reply.count("911") == 1
+    assert len(result.reply) < 160

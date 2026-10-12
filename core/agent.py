@@ -54,6 +54,24 @@ EMPTY_REPLY_FALLBACK = (
 GROUNDED_SUMMARY_TOOLS = frozenset({"get_parent_summary", "summarize_day"})
 SUMMARY_REQUEST = re.compile(r"\b(summar\w*|digest|recap|overview|full update)\b", re.IGNORECASE)
 
+# Urgent turns: the model gets a brief, not the note itself, so it does not
+# echo the 911 line that the app appends (live 2026-10-12 the reply carried
+# the guidance twice). If the model does say "call 911" anyway, the app's
+# note is skipped.
+URGENT_MODEL_BRIEF = (
+    "This message may describe an emergency. The app appends fixed guidance "
+    "to call 911 or Mom's doctor after your reply, so for this turn ignore the "
+    "rule above about telling the user to call 911: do not give that "
+    "guidance yourself and do not judge how serious it is. Reply in one or two "
+    "short sentences: acknowledge what happened and name one practical next "
+    "step for the family (stay with Mom, keep the phone nearby, tell the "
+    "siblings)."
+)
+URGENT_ESCALATION_NOTE_VOICE = (
+    "If this could be an emergency, call 911 now. Otherwise call Mom's doctor "
+    "right away; do not wait for me."
+)
+ALREADY_ESCALATED = re.compile(r"\b911\b", re.IGNORECASE)
 VOICE_MAX_COMPLETION_TOKENS = 80  # keeps spoken replies to a sentence or two
 VOICE_STYLE = (
     " The caregiver is speaking and will hear your reply read aloud: answer in "
@@ -102,7 +120,7 @@ class CaregiverAgent:
         if voice:
             system += VOICE_STYLE
         if urgent:
-            system += "\n" + URGENT_ESCALATION_NOTE
+            system += "\n" + URGENT_MODEL_BRIEF
         messages: list[dict[str, Any]] = [{"role": "system", "content": system}]
         for prior in history:
             role = prior["role"]
@@ -184,6 +202,7 @@ class CaregiverAgent:
                 text = "\n".join(summaries)
         if not text.strip():
             text = EMPTY_REPLY_FALLBACK
-        if urgent:
-            text = f"{text}\n\n{URGENT_ESCALATION_NOTE}".strip()
+        if urgent and not ALREADY_ESCALATED.search(text):
+            note = URGENT_ESCALATION_NOTE_VOICE if voice else URGENT_ESCALATION_NOTE
+            text = f"{text}\n\n{note}".strip()
         return AgentResult(text, actions, completions)
