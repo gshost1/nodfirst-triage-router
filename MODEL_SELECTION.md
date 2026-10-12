@@ -1,9 +1,10 @@
 # Configured model tiers
 
 The existing local `.env` tier settings use these candidates from the already
-verified DigitalOcean `/v1/models` response. No second model-list request or live
-completion was made. Runtime routing must read the environment variables rather
-than hardcode these IDs.
+verified DigitalOcean `/v1/models` response. No second model-list request was
+made; the only live completion is the single low-token routine router smoke
+recorded in `README.md`. Runtime routing must read the environment variables
+rather than hardcode these IDs.
 
 | Setting | Selected ID | Selection rationale | USD per 1M input / output tokens |
 | --- | --- | --- | --- |
@@ -19,5 +20,6 @@ these choices must not be advertised as live tool-validated.
 
 Pricing source: https://docs.digitalocean.com/products/inference/details/pricing/
 (page updated 2026-10-09, retrieved during mission preparation on 2026-10-12).
-These published rates are estimates for cost accounting, not a bill or a claim
-that inference has run.
+These published rates are estimates for cost accounting, not a bill; the only
+live inference is the single 62-token router smoke request recorded in
+`README.md`.

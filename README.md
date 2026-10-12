@@ -23,11 +23,11 @@ store, and an optional DigitalOcean Inference Router path.
 | Local app (MOCK routing, tools, `/chat`, `/stats`, static UI) | Working; tested locally with MOCK doubles and temporary SQLite files |
 | Five-message demo CLI (`scripts/demo.py`) | Working offline (MOCK rehearsal) |
 | DigitalOcean model list (`GET /v1/models`) | Verified once: HTTP 200, 81 model IDs, no Nous Hermes model present |
-| DigitalOcean chat completion or `router:nodfirst` request | **Not tested.** No live inference call has been made |
-| `nodfirst` Inference Router created in the DO Control Panel | **Not done yet** (owner action) |
+| `nodfirst` Inference Router created in the DO Control Panel | **Done** (2026-10-12): routine -> `glm-5.3-flash`, logistics -> `glm-5.3`, urgent-health -> `qwen3.8-max`, fallback `glm-5.3-flash` |
+| DigitalOcean chat completion through `router:nodfirst` | Verified once: one routine request, HTTP 200, serving model `glm-5.3-flash`, selected route `routine`, no retries |
 | Nous Hermes model or agent used/deployed | **No.** This app is Hermes-ready only |
 | Public GitHub repository | **Not created.** Publication is a pending owner action |
-| Spend | $0 in inference spend; costs shown anywhere are estimates |
+| Spend | Effectively $0.00: one 62-token router smoke request; costs shown anywhere are estimates |
 
 ## Architecture
 
@@ -139,8 +139,9 @@ IDs (`core/pricing.py`).
 
 Source: <https://docs.digitalocean.com/products/inference/details/pricing/>
 (page updated 2026-10-09; retrieved 2026-10-12). These are published list
-prices, not a bill, and no paid inference traffic has been sent. Models without
-a published entry are reported as unpriced instead of guessed.
+prices, not a bill; the only live inference traffic sent is the single 62-token
+router smoke request recorded above. Models without a published entry are
+reported as unpriced instead of guessed.
 
 ## Run the app locally
 
@@ -162,7 +163,7 @@ Routing modes:
 | --- | --- | --- |
 | `mock` | Canned replies and routing metadata, no network at all | Offline rehearsal, tests, demos without a credential |
 | `client` | Maps routine/logistics/urgent to `MODEL_SMALL`/`MODEL_MID`/`MODEL_LARGE` on the DO endpoint | Documented fallback when the Inference Router is unavailable |
-| `do` | Routine/logistics go through `router:nodfirst` (the router picks the serving model); urgent bypasses it to `MODEL_LARGE` | The intended DigitalOcean path, once the router exists |
+| `do` | Routine/logistics go through `router:nodfirst` (the router picks the serving model); urgent bypasses it to `MODEL_LARGE` | The intended DigitalOcean path; the router exists and one routine request has been smoke-verified |
 
 ## Five-message demo (offline)
 
@@ -211,7 +212,7 @@ Prepare one of these two servers, then open <http://127.0.0.1:8000>:
 # Offline (what you can always demo)
 ROUTER_MODE=mock LLM_BASE_URL=mock uv run uvicorn app:app --host 127.0.0.1 --port 8000
 
-# DigitalOcean, only once nodfirst exists and the key is configured
+# DigitalOcean; the nodfirst router exists and the key is configured (one routine smoke request verified)
 ROUTER_MODE=do uv run uvicorn app:app --host 127.0.0.1 --port 8000
 ```
 
@@ -236,8 +237,12 @@ State the mode you are actually running:
   unauthorized: it sends the same messages to the tier model IDs directly on the
   DigitalOcean endpoint.
 
-If the router has not been created or the smoke request has not succeeded, demo
-client mode or MOCK and say so plainly. Do not claim the router path works.
+The router exists and one routine smoke request has succeeded (see the status
+table). If your key lacks router scope, or the router is unavailable in your
+environment, demo `ROUTER_MODE=client` or MOCK and say so instead of claiming the
+router path works. That single smoke verifies only a configured routine request;
+urgent routing (which bypasses the router), the other two configured routes, and
+a full app chat flow in `ROUTER_MODE=do` remain unverified.
 
 Avoid unsupported numbers: this MVP has no evaluated accuracy figure and no
 benchmark, so do not quote savings percentages or urgent-recall rates. The stats
@@ -273,14 +278,18 @@ appears in this README or in the UI.
 - **OIS Workshop Day (MLH + DigitalOcean)** is the event this project was built
   for.
 - **DigitalOcean Serverless Inference** is the model endpoint: an
-  OpenAI-compatible API at `https://inference.do-ai.run/v1`. The only verified
-  live request so far is `GET /v1/models` (HTTP 200, 81 model IDs). No chat
-  completion has been issued.
+  OpenAI-compatible API at `https://inference.do-ai.run/v1`. Verified live
+  requests are `GET /v1/models` (HTTP 200, 81 model IDs) and one low-token chat
+  completion through `router:nodfirst` (see the status table above).
 - **DigitalOcean Inference Router**: in `ROUTER_MODE=do`, routine and logistics
   traffic is sent as `router:nodfirst` and the router chooses the serving model;
-  urgent traffic bypasses the router entirely. This code path is unit-tested
-  against a test double, but the `nodfirst` router has **not** been created or
-  exercised against the live API, so the DO router path is unverified.
+  urgent traffic bypasses the router entirely. The router was created in the DO
+  Control Panel (2026-10-12), and one low-token routine request has been verified
+  end to end: HTTP 200, serving model `glm-5.3-flash`, selected route `routine`.
+  This verifies only that this one configured routine request works and that the
+  configured key carries router scope; urgent/bypass routing, the other two
+  configured routes, and a full application chat flow in `ROUTER_MODE=do` remain
+  unverified. The code path also remains unit-tested against a test double.
 - **Nous Hermes**: no Hermes model appeared in the verified model list, and
   deploying a Hermes agent is outside this MVP. The app is **Hermes-ready**: it
   speaks the standard OpenAI-compatible chat-completions and tool-calling
