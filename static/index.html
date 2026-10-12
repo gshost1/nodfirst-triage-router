@@ -952,6 +952,7 @@
           composerInput.value = '';
           if (voiceMode) {
             // Voice mode speaks every reply, typed or heard.
+            cancelRecording();
             try { recognizer && recognizer.abort(); } catch (error) { /* not listening */ }
             voiceTurn(text.trim());
             return;
@@ -1023,12 +1024,178 @@
         // ---- Voice input: browser speech recognition. The inference provider
         // has no speech-to-text route (verified 2026-10-12), so the microphone
         // stays local; the transcript goes through the same triage as typed text.
+        // ---- Local speech-to-text (whisper.cpp behind POST /transcribe).
+        // Preferred over the browser recognizer when the server reports it:
+        // the page records a clip from the microphone, stops after
+        // RECORD_SILENCE_MS of quiet following speech, and posts it. Nothing
+        // leaves this computer.
+        var localStt = { enabled: false, engine: null, model: null, reason: '' };
+        var RECORD_SILENCE_MS = 1500;
+        var RECORD_MAX_MS = 20000;
+        var RECORD_NO_SPEECH_MS = 9000;
+        var VAD_THRESHOLD = 0.006;
+        var micStream = null;
+        var activeRecording = null;
+        function recorderSupported() {
+          return Boolean(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder);
+        }
+        function getMicStream() {
+          if (micStream && micStream.active) {
+            return Promise.resolve(micStream);
+          }
+          return navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } })
+            .then(function (stream) { micStream = stream; return stream; });
+        }
+        function recordUtterance(onHearing) {
+          // Resolves with a Blob once the speaker has paused, or null when
+          // nothing was heard or the recording was cancelled.
+          return getMicStream().then(function (stream) {
+            return new Promise(function (resolve) {
+              var context = ensureAudioContext();
+              var options = {};
+              if (window.MediaRecorder.isTypeSupported && window.MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+                options.mimeType = 'audio/webm;codecs=opus';
+              }
+              var recorder = new MediaRecorder(stream, options);
+              var chunks = [];
+              var started = Date.now();
+              var lastVoice = 0;
+              var spoke = false;
+              var cancelled = false;
+              var analyser = null;
+              var source = null;
+              var data = null;
+              if (context) {
+                source = context.createMediaStreamSource(stream);
+                analyser = context.createAnalyser();
+                analyser.fftSize = 1024;
+                source.connect(analyser);
+                data = new Float32Array(analyser.fftSize);
+              }
+              var floor = 0;
+              var samples = 0;
+              var ticker = setInterval(function () {
+                var now = Date.now();
+                if (analyser) {
+                  analyser.getFloatTimeDomainData(data);
+                  var sum = 0;
+                  for (var i = 0; i < data.length; i += 1) { sum += data[i] * data[i]; }
+                  var rms = Math.sqrt(sum / data.length);
+                  // Noise floor from the first few readings; speech must be
+                  // clearly above it and above a small absolute minimum.
+                  if (samples < 4) { floor = Math.max(floor, rms); samples += 1; }
+                  var threshold = Math.max(VAD_THRESHOLD, floor * 2.5);
+                  if (samples >= 4 && rms > threshold) {
+                    if (!spoke && onHearing) { onHearing(); }
+                    spoke = true;
+                    lastVoice = now;
+                  }
+                }
+                if (spoke && now - lastVoice > RECORD_SILENCE_MS) { finish(); }
+                else if (!spoke && now - started > RECORD_NO_SPEECH_MS) { finish(); }
+                else if (now - started > RECORD_MAX_MS) { finish(); }
+              }, 100);
+              function finish() {
+                clearInterval(ticker);
+                if (recorder.state !== 'inactive') { recorder.stop(); }
+              }
+              recorder.ondataavailable = function (event) {
+                if (event.data && event.data.size) { chunks.push(event.data); }
+              };
+              var forced = false;
+              recorder.onstop = function () {
+                if (source) { source.disconnect(); }
+                activeRecording = null;
+                if (cancelled || !(spoke || forced) || !chunks.length) {
+                  resolve(null);
+                  return;
+                }
+                resolve(new Blob(chunks, { type: recorder.mimeType || 'audio/webm' }));
+              };
+              activeRecording = {
+                cancel: function () { cancelled = true; finish(); },
+                send: function () { forced = true; finish(); }
+              };
+              recorder.start(250);
+            });
+          });
+        }
+        function cancelRecording() {
+          if (activeRecording) { activeRecording.cancel(); }
+        }
+        function sendRecordingNow() {
+          if (activeRecording) { activeRecording.send(); }
+        }
+        function transcribeClip(blob) {
+          return fetch('/transcribe', {
+            method: 'POST',
+            headers: { 'Content-Type': blob.type || 'audio/webm' },
+            body: blob
+          }).then(function (response) {
+            if (!response.ok) {
+              throw new Error('POST /transcribe returned ' + response.status);
+            }
+            return response.json();
+          }).then(function (body) { return String(body.text || '').trim(); });
+        }
+        function listenLocal(onHeard) {
+          // One utterance: record, transcribe, hand the text on.
+          micControl.dataset.listening = 'true';
+          micControl.setAttribute('aria-pressed', 'true');
+          micControl.textContent = '⏹';
+          var reset = function () {
+            micControl.dataset.listening = 'false';
+            micControl.setAttribute('aria-pressed', 'false');
+            micControl.textContent = '🎤';
+          };
+          return recordUtterance(function () {
+            if (voiceMode) { setVoiceState('listening', 'Hearing you… pause for a moment to send.'); }
+            else { micStatus.textContent = 'Hearing you… pause for a moment to send.'; }
+          }).then(function (blob) {
+            reset();
+            if (!blob) { return ''; }
+            if (voiceMode) { setVoiceState('thinking', 'Transcribing…'); }
+            else { micStatus.textContent = 'Transcribing…'; }
+            return transcribeClip(blob);
+          }).then(onHeard, function (error) {
+            reset();
+            if (voiceMode) { setVoiceState('typed', 'Microphone unavailable (' + error.message + '). Type below; replies are still spoken aloud.'); }
+            else { micStatus.textContent = 'Voice input error: ' + error.message; }
+            if (voiceMode) { recognitionBroken = 'not-allowed'; }
+          });
+        }
+        function renderStt(status) {
+          localStt = status || localStt;
+          if (localStt.enabled && recorderSupported()) {
+            micControl.disabled = false;
+            voiceModeButton.disabled = false;
+            voiceModeButton.title = '';
+            micStatus.dataset.engine = 'local';
+            micStatus.textContent = 'Voice input: local ' + localStt.engine + ' (' + localStt.model + '), audio never leaves this computer.';
+          } else {
+            localStt.enabled = false;
+          }
+        }
+        fetch('/transcribe', { headers: { Accept: 'application/json' } })
+          .then(function (response) { return response.ok ? response.json() : null; })
+          .then(renderStt)
+          .catch(function () { /* browser recognition stays */ });
+
         var Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         var recognizer = null;
         if (!Recognition) {
           micControl.disabled = true;
           micStatus.dataset.engine = 'none';
           micStatus.textContent = 'Voice input: not supported in this browser (type instead).';
+          micControl.addEventListener('click', function () {
+            if (!localStt.enabled) { return; }
+            if (micControl.dataset.listening === 'true') { sendRecordingNow(); return; }
+            micStatus.textContent = 'Listening… say something about Mom, then pause (or press ⏹ to send now).';
+            listenLocal(function (heard) {
+              if (heard) { micStatus.textContent = 'Heard: "' + heard + '" — sending.'; sendMessage(heard); }
+              else { micStatus.textContent = 'Voice input: nothing heard. Try again.'; }
+            });
+          });
         } else {
           micStatus.dataset.engine = 'browser';
           micStatus.textContent = 'Voice input: browser speech recognition, nothing leaves the page until you send.';
@@ -1096,6 +1263,19 @@
             }
           });
           micControl.addEventListener('click', function () {
+            if (localStt.enabled) {
+              if (micControl.dataset.listening === 'true') { sendRecordingNow(); return; }
+              micStatus.textContent = 'Listening… say something about Mom, then pause (or press ⏹ to send now).';
+              listenLocal(function (heard) {
+                if (heard) {
+                  micStatus.textContent = 'Heard: "' + heard + '" — sending.';
+                  sendMessage(heard);
+                } else {
+                  micStatus.textContent = 'Voice input: nothing heard. Try again.';
+                }
+              });
+              return;
+            }
             if (micControl.dataset.listening === 'true') {
               recognizer.stop();
               return;
@@ -1141,7 +1321,20 @@
         }
 
         function startListening() {
-          if (!voiceMode || !recognizer) {
+          if (!voiceMode) {
+            return;
+          }
+          if (localStt.enabled && !recognitionBroken) {
+            composerInput.value = '';
+            setVoiceState('listening', 'Listening… say something about Mom, then pause (or press ⏹ to send now).');
+            listenLocal(function (heard) {
+              if (!voiceMode || voiceBusy) { return; }
+              voiceTurn(heard || '');
+            });
+            return;
+          }
+          if (!recognizer) {
+            setVoiceState('typed', 'Type your question below; replies are spoken aloud.');
             return;
           }
           if (recognitionBroken) {
@@ -1403,6 +1596,7 @@
         function stopVoiceMode() {
           voiceMode = false;
           voiceBusy = false;
+          cancelRecording();
           try { recognizer && recognizer.abort(); } catch (error) { /* already stopped */ }
           if (window.speechSynthesis) { window.speechSynthesis.cancel(); }
           stopWaitTimer();

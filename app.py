@@ -32,6 +32,7 @@ from core.metrics_store import MetricsStore
 from core.notify import notifier_from_env
 from core.speech import SpeechError, speech_from_env
 from core.store import CareStore
+from core.transcribe import TranscribeError, transcriber_from_env
 from router.config import RouterConfig
 
 REPO_ROOT = Path(__file__).resolve().parent
@@ -84,6 +85,7 @@ def build_service() -> ChatService:
         metrics=MetricsStore(db_path),
         notifier=notifier_from_env(),
         speech=speech_from_env(),
+        transcriber=transcriber_from_env(),
     )
 
 
@@ -131,6 +133,26 @@ def create_app(
         return get_service().handle(
             message, sender=request.sender, voice=request.voice
         ).as_dict()
+
+    @api.get("/transcribe")
+    def transcribe_status() -> dict[str, Any]:
+        """Whether local speech-to-text is available, and which model."""
+        return get_service().transcriber.status()
+
+    @api.post("/transcribe")
+    async def transcribe(request: Request) -> dict[str, Any]:
+        """A recorded clip (raw body, audio/* content type) as text.
+
+        503 when whisper.cpp is not set up: the page then uses the browser's
+        own recognition and says so.
+        """
+        audio = await request.body()
+        media_type = request.headers.get("content-type", "audio/webm")
+        try:
+            transcript = get_service().transcribe(audio, media_type)
+        except TranscribeError as error:
+            raise HTTPException(status_code=error.status_code, detail=str(error)) from error
+        return {"text": transcript.text, "engine": transcript.engine, "model": transcript.model}
 
     @api.post("/speak")
     def speak(request: SpeakRequest) -> Response:

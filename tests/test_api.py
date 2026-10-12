@@ -384,3 +384,33 @@ def test_mock_chat_makes_no_outbound_connection_and_persists_stats(
     assert stats["total_calls"] == 2
     # A second MetricsStore over the same file sees the same persisted calls.
     assert len(MetricsStore(db_path).calls()) == 2
+
+
+def test_provider_overload_does_not_kill_the_turn(tmp_path: Path) -> None:
+    """Live 2026-10-12: a 529 'Platform overloaded' became a 500 mid-demo."""
+    import httpx
+    from openai import APIStatusError
+
+    from core.chat import OVERLOADED_REPLY, ChatService
+    from core.metrics_store import MetricsStore
+    from core.store import CareStore
+    from router.config import RouterConfig
+
+    class Overloaded:
+        is_mock = False
+        model = "glm-5.3-flash"
+
+        def complete(self, *args: object, **kwargs: object) -> object:
+            response = httpx.Response(529, request=httpx.Request("POST", "http://x"))
+            raise APIStatusError("overloaded", response=response, body=None)
+
+        complete_raw = complete
+
+    db = tmp_path / "o.sqlite3"
+    service = ChatService(
+        client=Overloaded(), config=RouterConfig.from_env(PRICED_ENV),  # type: ignore[arg-type]
+        store=CareStore(db), metrics=MetricsStore(db),
+    )
+    turn = service.handle("Mom had a fall in the kitchen", sender="Anna")
+    assert turn.as_dict()["message_class"] == "urgent"
+    assert OVERLOADED_REPLY in turn.reply and "911" in turn.reply

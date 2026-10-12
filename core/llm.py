@@ -9,10 +9,11 @@ from types import SimpleNamespace
 from typing import Any
 
 from dotenv import load_dotenv
-from openai import OpenAI
+from openai import APIError, OpenAI
 
+ProviderError = APIError  # status, connection and timeout errors from the SDK
 REQUEST_TIMEOUT_SECONDS = 30.0
-MAX_RETRIES = 2
+MAX_RETRIES = 3  # the SDK backs off on 5xx, including 529 'overloaded'
 # The configured tiers are thinking models: with the default effort their
 # reasoning consumes the whole completion budget and the content comes back
 # empty (verified 2026-10-12 on glm-5.3-flash: finish_reason "length", 512

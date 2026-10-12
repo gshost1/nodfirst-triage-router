@@ -7,13 +7,15 @@ and `GET /stats` cannot drift apart.
 
 from __future__ import annotations
 
+import logging
 import time
 from collections.abc import Callable, Sequence
 from dataclasses import asdict, dataclass
 from decimal import Decimal
 from typing import Any
 
-from core.agent import CaregiverAgent
+from core.agent import AgentResult, CaregiverAgent
+from core.llm import ProviderError
 from core.metrics import (
     COST_LABEL,
     TIER_LARGE,
@@ -38,7 +40,13 @@ from core.pricing import PricingTable
 from core.speech import DOSpeech, NullSpeech, SpeechClip
 from core.store import CareStore
 from core.tools import ToolAction
-from router.classify import MessageClass, TriageClassifier, model_classification_call
+from core.transcribe import NullTranscriber, Transcript, WhisperCLI
+from router.classify import (
+    MessageClass,
+    TriageClassifier,
+    keyword_classify,
+    model_classification_call,
+)
 from router.config import RouterConfig, RouterMode
 from router.dispatch import RouteDecision, dispatch_route
 from router.do_adapter import DORouterAdapter
@@ -124,6 +132,20 @@ class ChatTurn:
         }
 
 
+logger = logging.getLogger(__name__)
+
+OVERLOADED_REPLY = (
+    "The assistant could not reach its model just now (the provider is "
+    "overloaded). Nothing was recorded; please send that again in a moment."
+)
+
+
+def overloaded_reply(escalation_note: str | None) -> str:
+    if escalation_note:
+        return f"{OVERLOADED_REPLY}\n\n{escalation_note}"
+    return OVERLOADED_REPLY
+
+
 class ChatService:
     """Coordinate classification, dispatch, the agent, and metrics.
 
@@ -144,9 +166,11 @@ class ChatService:
         mock_completion: Callable[..., Any] | None = None,
         notifier: BotmailNotifier | NullNotifier | None = None,
         speech: DOSpeech | NullSpeech | None = None,
+        transcriber: WhisperCLI | NullTranscriber | None = None,
     ) -> None:
         self.notifier = notifier or NullNotifier()
         self.speech = speech or NullSpeech()
+        self.transcriber = transcriber or NullTranscriber("speech-to-text off")
         self.client = client
         self.config = config
         self.store = store
@@ -186,10 +210,16 @@ class ChatService:
         classification = classifier.classify(message)
         decision = dispatch_route(self.config, classification)
         agent = CaregiverAgent(self.store, self._completion(recorder, decision))
-        result = agent.run(
-            message, urgent=decision.is_urgent, sender=sender, history=history,
-            voice=voice,
-        )
+        try:
+            result = agent.run(
+                message, urgent=decision.is_urgent, sender=sender, history=history,
+                voice=voice,
+            )
+        except ProviderError as error:
+            logger.warning("agent completion failed (%s); honest fallback", error)
+            result = AgentResult(
+                overloaded_reply(decision.escalation_note), [], []
+            )
 
         message_class = decision.message_class.value
         self.store.add_message(sender, "user", message, message_class)
@@ -253,6 +283,9 @@ class ChatService:
         """Read the digest aloud through text-to-speech (raises SpeechError)."""
         return self.speech.synthesize(self.store.daily_digest()["summary"])
 
+    def transcribe(self, audio: bytes, media_type: str) -> Transcript:
+        return self.transcriber.transcribe(audio, media_type)
+
     def speak(self, text: str) -> SpeechClip:
         """Read any reply aloud (raises SpeechError)."""
         return self.speech.synthesize(text)
@@ -285,7 +318,14 @@ class ChatService:
         self, recorder: _TurnRecorder, message: str
     ) -> MessageClass:
         start = self.clock()
-        call = model_classification_call(self.client, self.config, message)
+        try:
+            call = model_classification_call(self.client, self.config, message)
+        except ProviderError as error:
+            # Live 2026-10-12: a 529 "Platform overloaded" here turned the whole
+            # turn into a 500. The keyword classifier keeps the turn alive and
+            # the urgent safety net still applies on top of it.
+            logger.warning("classifier unavailable (%s); using keywords", error)
+            return keyword_classify(message)
         latency_ms = (self.clock() - start) * 1000.0
         recorder.add(
             build_call(

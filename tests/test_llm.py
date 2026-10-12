@@ -40,7 +40,7 @@ def test_client_uses_environment_configuration_and_sdk_defaults(
         "api_key": "test-key",
         "base_url": "https://llm.example/v1",
         "timeout": 30.0,
-        "max_retries": 2,
+        "max_retries": 3,
     }
     client.complete([{"role": "user", "content": "hello"}])
     client.complete([], model="caller-selected-model")
@@ -92,7 +92,7 @@ def test_real_sdk_has_configured_timeout_and_retries(
         assert client._sdk_client is not None
         assert str(client._sdk_client.base_url) == "https://llm.example/v1/"
         assert client._sdk_client.timeout == 30.0
-        assert client._sdk_client.max_retries == 2
+        assert client._sdk_client.max_retries == 3
     finally:
         client.close()
 

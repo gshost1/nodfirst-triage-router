@@ -25,6 +25,7 @@ store, and an optional DigitalOcean Inference Router path.
 | DigitalOcean model list (`GET /v1/models`) | Verified 2026-10-12: HTTP 200, 82 model IDs, no Nous Hermes model, no speech-to-text model (`qwen3-tts-voicedesign` is text-to-speech only) |
 | `nodfirst` Inference Router created in the DO Control Panel | **Done** (2026-10-12): routine -> `glm-5.3-flash`, logistics -> `glm-5.3`, urgent-health -> `qwen3.8-max`, fallback `glm-5.3-flash` |
 | Full chat flow in `ROUTER_MODE=do` | **Verified 2026-10-12, latest run clean** (see "Live rehearsal results" below): all five scripted messages classified as expected, both urgent messages served by `qwen3.8-max` via the direct-large bypass, routine/logistics served by `glm-5.3-flash`/`glm-5.3` through `router:nodfirst`, every turn under 4 s, 12 calls, estimated spend $0.006 |
+| Provider 529 "Platform overloaded" mid-demo | Fixed 2026-10-12: a classifier 529 became a 500. The SDK now retries 3 times; if the classifier still fails the keyword classifier takes the turn (urgent safety net intact); if the agent call fails the reply says so honestly and keeps the 911 note on urgent turns |
 | Urgent reply said the 911 line twice | Fixed 2026-10-12: the model got the escalation note in its prompt and echoed it, then the app appended it again (seen live, 5 voice clips). The model now gets a brief that says the app adds the guidance; the app skips its note if the reply already says 911; voice turns get a shorter note. Verified live on `qwen3.8-max`: one 911 line in text (321 chars) and voice (192 chars) |
 | Live bugs found and fixed during rehearsal | Thinking tiers returned empty text until `reasoning_effort=none`; summary tools overrode urgent replies; `qwen3.8-max` called a lookup tool on "Mom had a fall"; `glm-5.3` asked for a time instead of booking. All fixed and re-verified live |
 | DigitalOcean text-to-speech (`qwen3-tts-voicedesign`) | Verified 2026-10-12: `POST /digest/speak` returned a 26 s WAV through the app; inputs over ~400 chars timed out, so the digest is capped at 320 |
@@ -226,6 +227,27 @@ it has run. Data lives in `core/demo_data.py`. Verified live 2026-10-12
 after seeding: "What appointments does Mom have this week?" → logistics,
 `glm-5.3`, 5.1 s, and the reply listed all four appointments with the right
 drivers.
+
+### Voice input: local whisper.cpp
+
+Speech-to-text runs on this machine, not in the browser and not on the
+provider (which has none). The page records a clip with MediaRecorder, stops
+1.5 s after you go quiet (20 s cap; press ⏹ to send sooner) and posts it to
+`POST /transcribe`; ffmpeg resamples it to 16 kHz and `whisper-cli`
+(whisper.cpp, Metal) decodes it with a prompt that primes the family's names
+and Mom's medications. Nothing leaves the computer.
+
+Why: the browser's own recognition (Google's generic recognizer) cut
+sentences at the first pause and misheard names; live on 2026-10-12 it turned
+a question about Mom into "lightning talk" and "brewmaster". whisper.cpp
+with `ggml-base.en` on this M2 transcribed an 11 s clip in under 1 s and a
+Mac-spoken test question word for word, including "metformin", "Pavel" and
+"cardiology" (1.0 s end to end through the app).
+
+Setup: `brew install whisper-cpp ffmpeg` and download `ggml-base.en.bin`
+(148 MB) into `~/.cache/whisper-cpp/`; see `.env.example`. `GET /transcribe`
+reports whether it is on. Without it the page falls back to the browser
+recognizer and says so.
 
 ### Voice: speak to it, hear the digest
 
@@ -521,7 +543,7 @@ uv run mypy app.py core router scripts
 uv run ruff check .
 ```
 
-137 tests as of 2026-10-12. Every test runs in MOCK mode with temporary
+143 tests as of 2026-10-12. Every test runs in MOCK mode with temporary
 SQLite files; no test issues a provider request. `tests/test_demo.py` covers the five-message mix, the offline
 guarantee, and consistency with the UI replay script.
 
